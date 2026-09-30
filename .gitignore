@@ -1,0 +1,6 @@
+dist
+node_modules
+*.log
+.DS_Store
+# Test workflows with your own phone numbers filled in
+test-workflows/local/

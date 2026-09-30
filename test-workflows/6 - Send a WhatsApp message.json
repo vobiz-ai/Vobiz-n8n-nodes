@@ -1,0 +1,69 @@
+{
+  "name": "Vobiz test 6 - Send a WhatsApp message",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000016",
+      "name": "Click to test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000017",
+      "name": "Send WhatsApp",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "resource": "whatsAppMessage",
+        "operation": "send",
+        "channel": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "+91",
+        "messageType": "text",
+        "text": "Hi! This WhatsApp message came from the Vobiz node in n8n."
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000018",
+      "name": "Note 18",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -380
+      ],
+      "parameters": {
+        "content": "## Test 6: send a WhatsApp message\nNeeds a WhatsApp channel on your Vobiz account.\n1. First, from your phone, send any WhatsApp message (e.g. \"hi\") to your business number. That opens WhatsApp's 24-hour window, so plain text is allowed.\n2. Open **Send WhatsApp**: pick the **Credential** of the account that has WhatsApp, and your **Channel**.\n3. **To**: your own WhatsApp number.\n4. **Execute workflow**. The message arrives on your phone.",
+        "width": 480,
+        "height": 340
+      }
+    }
+  ],
+  "connections": {
+    "Click to test": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

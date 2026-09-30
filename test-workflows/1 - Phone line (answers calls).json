@@ -1,0 +1,46 @@
+{
+  "name": "Vobiz test 1 - Phone line",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Vobiz Call Answered Trigger",
+      "type": "CUSTOM.vobizCallAnsweredTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "4a1f6b2c-0d3e-4f5a-9b8c-1d2e3f4a5b6c",
+      "parameters": {
+        "events": [
+          "callAnswered",
+          "callEnded"
+        ],
+        "numbers": [],
+        "message": "Hello! You have reached the n8n test line on Vobiz. Thank you, goodbye.",
+        "voice": "WOMAN",
+        "language": "en-GB",
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -360
+      ],
+      "parameters": {
+        "content": "## Test 1: the n8n phone line\n1. Open the trigger and pick your **Vobiz** credential.\n2. **Answer Incoming Calls On**: choose your new numbers (the ones marked \"not linked\").\n3. **Publish** this workflow (top right).\n4. From your mobile, call one of those numbers. You hear the message.\n5. Hang up. **Executions** shows two runs: call answered, then call ended (straight away).\n6. Copy the trigger's **Production URL**: test 2 needs it.",
+        "width": 480,
+        "height": 320
+      }
+    }
+  ],
+  "connections": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

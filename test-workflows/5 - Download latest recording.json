@@ -1,0 +1,91 @@
+{
+  "name": "Vobiz test 5 - Download latest recording",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "name": "Click to test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "name": "Latest Recording",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "resource": "recording",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000014",
+      "name": "Download It",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "resource": "recording",
+        "operation": "download",
+        "recordingId": "={{ $json.recording_id }}",
+        "binaryPropertyName": "data"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000015",
+      "name": "Note 15",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -300
+      ],
+      "parameters": {
+        "content": "## Test 5: recordings\nPick your credential in both Vobiz nodes, then **Execute workflow**. Open **Download It** and play the file under **Binary**.",
+        "width": 460,
+        "height": 180
+      }
+    }
+  ],
+  "connections": {
+    "Click to test": {
+      "main": [
+        [
+          {
+            "node": "Latest Recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Latest Recording": {
+      "main": [
+        [
+          {
+            "node": "Download It",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

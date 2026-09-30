@@ -1,0 +1,72 @@
+{
+  "name": "Vobiz test 2 - Make a call",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "name": "Click to test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "name": "Make a Call",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "+91",
+        "answerUrl": "PASTE THE PRODUCTION URL FROM TEST 1",
+        "message": "Hi! This message came from the Make a Call node. Goodbye.",
+        "options": {
+          "timeLimit": 60
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "name": "Note 5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -360
+      ],
+      "parameters": {
+        "content": "## Test 2: make a call\n1. Open **Make a Call** and pick your credential.\n2. **From Number**: pick one of your new numbers.\n3. **To**: your own mobile, e.g. +9198XXXXXXXX.\n4. **Answer URL**: paste the Production URL from test 1.\n5. Click **Execute workflow**. Your phone rings; answer it and hang up.\n6. Test 1's **Executions** shows the call answered, then ended.",
+        "width": 480,
+        "height": 320
+      }
+    }
+  ],
+  "connections": {
+    "Click to test": {
+      "main": [
+        [
+          {
+            "node": "Make a Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "name": "Vobiz test 4 - Call records report",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "name": "Click to test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "name": "Last 7 Days Summary",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -100
+      ],
+      "parameters": {
+        "resource": "callRecord",
+        "operation": "getSummary",
+        "filters": {
+          "startDate": "={{ $today.minus({ days: 6 }).toISODate() }}"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "name": "Latest 10 Calls",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        260,
+        100
+      ],
+      "parameters": {
+        "resource": "callRecord",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 10,
+        "filters": {},
+        "simplify": true
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "name": "Note 11",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -300
+      ],
+      "parameters": {
+        "content": "## Test 4: call records\nPick your credential in both Vobiz nodes, then click **Execute workflow**.",
+        "width": 420,
+        "height": 160
+      }
+    }
+  ],
+  "connections": {
+    "Click to test": {
+      "main": [
+        [
+          {
+            "node": "Last 7 Days Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Latest 10 Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,30 @@
+{
+	"node": "@vobiz/n8n-nodes-vobiz.vobiz",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": [
+		"Communication"
+	],
+	"alias": [
+		"call",
+		"phone",
+		"voice",
+		"telephony",
+		"cdr",
+		"call record",
+		"recording",
+		"whatsapp"
+	],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/vobiz-ai/Vobiz-n8n-nodes#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/vobiz-ai/Vobiz-n8n-nodes#readme"
+			}
+		]
+	}
+}

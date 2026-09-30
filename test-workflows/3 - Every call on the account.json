@@ -1,0 +1,46 @@
+{
+  "name": "Vobiz test 3 - Every call on the account",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "name": "Vobiz Trigger",
+      "type": "CUSTOM.vobizTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "event": "callEnded",
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {},
+        "simplify": true
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "name": "Note 7",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -360
+      ],
+      "parameters": {
+        "content": "## Test 3: every call on the account\nIt watches every number on the account, including numbers used by other setups such as a CRM integration, without changing them. It checks once a minute.\n1. Pick your credential.\n2. Click **Fetch Test Event**: you see your latest answered call.\n3. **Publish**, make any call, and within about a minute a new run appears under **Executions**.",
+        "width": 460,
+        "height": 280
+      }
+    }
+  ],
+  "connections": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
