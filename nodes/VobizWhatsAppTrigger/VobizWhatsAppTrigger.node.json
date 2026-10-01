@@ -1,5 +1,5 @@
 {
-	"node": "@vobiz/n8n-nodes-vobiz.vobizWhatsAppTrigger",
+	"node": "@vobiz-ai/n8n-nodes-vobiz.vobizWhatsAppTrigger",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": [

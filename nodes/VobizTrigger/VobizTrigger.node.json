@@ -1,5 +1,5 @@
 {
-	"node": "@vobiz/n8n-nodes-vobiz.vobizTrigger",
+	"node": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": [

@@ -11,7 +11,7 @@ const { NodeApiError } = require('n8n-workflow');
 const NODE = {
 	id: 'node-1234abcd-5678',
 	name: 'Vobiz',
-	type: '@vobiz/n8n-nodes-vobiz.vobiz',
+	type: '@vobiz-ai/n8n-nodes-vobiz.vobiz',
 	typeVersion: 1,
 	position: [0, 0],
 	parameters: {},

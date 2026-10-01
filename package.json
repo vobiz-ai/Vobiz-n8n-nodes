@@ -1,5 +1,5 @@
 {
-	"name": "@vobiz/n8n-nodes-vobiz",
+	"name": "@vobiz-ai/n8n-nodes-vobiz",
 	"version": "0.1.0",
 	"description": "n8n nodes for Vobiz: make calls, get call records and recordings, send WhatsApp messages, and start workflows from calls and WhatsApp messages.",
 	"license": "MIT",

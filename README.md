@@ -5,7 +5,7 @@
 
 Bring [Vobiz](https://www.vobiz.ai) voice and WhatsApp into your [n8n](https://n8n.io) workflows. Place calls that speak a message, answer incoming calls, act the moment a call is answered or ends, pull call records and recordings, and send and receive WhatsApp messages, all without writing code or running a server of your own.
 
-**Package:** `@vobiz/n8n-nodes-vobiz`
+**Package:** `@vobiz-ai/n8n-nodes-vobiz`
 
 ## Contents
 
@@ -39,7 +39,7 @@ The **Vobiz** node can also be used as a tool by n8n's AI Agent.
 ### Self-hosted n8n
 
 1. Go to **Settings → Community Nodes** and select **Install**.
-2. Enter `@vobiz/n8n-nodes-vobiz`, agree to the risks of using community nodes, and select **Install**.
+2. Enter `@vobiz-ai/n8n-nodes-vobiz`, agree to the risks of using community nodes, and select **Install**.
 3. Search for **Vobiz** in the nodes panel.
 
 ### Self-hosted n8n with npm (Docker, queue mode)
@@ -47,7 +47,7 @@ The **Vobiz** node can also be used as a tool by n8n's AI Agent.
 ```bash
 mkdir -p ~/.n8n/nodes
 cd ~/.n8n/nodes
-npm install @vobiz/n8n-nodes-vobiz
+npm install @vobiz-ai/n8n-nodes-vobiz
 ```
 
 Restart n8n afterwards.

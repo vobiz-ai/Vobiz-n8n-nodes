@@ -10,7 +10,7 @@
  *
  * n8n loads nodes from its custom folder under the package name CUSTOM, so
  * here the node types are CUSTOM.vobiz and so on. Installed from npm they are
- * @vobiz/n8n-nodes-vobiz.vobiz.
+ * @vobiz-ai/n8n-nodes-vobiz.vobiz.
  */
 const { spawn, spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');

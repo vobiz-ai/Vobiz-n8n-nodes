@@ -16,7 +16,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// n8n names nodes from its custom folder CUSTOM.*; installed from npm they are @vobiz/n8n-nodes-vobiz.*
+// n8n names nodes from its custom folder CUSTOM.*; installed from npm they are @vobiz-ai/n8n-nodes-vobiz.*
 const PKG = process.env.VOBIZ_NODE_PREFIX || 'CUSTOM';
 
 function buildAll(dir, numbers, myMobile = '') {
