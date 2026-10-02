@@ -1,26 +1,26 @@
 # Testing the Vobiz nodes on your computer
 
-This runs a private n8n on your PC with the Vobiz nodes loaded. It uses its own
-folder, `%USERPROFILE%\.n8n-vobiz`, so your usual n8n and its workflows are not
+This runs a private n8n on your computer with the Vobiz nodes loaded. It uses its own
+folder, `.n8n-vobiz` in your home folder, so your usual n8n and its workflows are not
 touched. Only test 1 changes where a number points, and only for numbers you
 choose that aren't linked to anything else.
 
 Real calls and WhatsApp messages cost what they normally cost on Vobiz. Each test
 call below lasts under a minute.
 
-**You need:** Windows with PowerShell, [Node.js](https://nodejs.org) (LTS), and
+**You need:** Windows, macOS or Linux, a current [Node.js](https://nodejs.org) 24 (see
+`.nvmrc`; n8n needs 24 or newer), and
 [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-(`winget install --id Cloudflare.cloudflared`). On macOS or Linux, build with
-`npm run build` and load `dist/` into n8n's custom nodes folder yourself.
+(Windows: `winget install --id Cloudflare.cloudflared`; macOS: `brew install cloudflared`).
 
 ## 1. Start it
 
-1. Open **PowerShell**.
+1. Open a terminal (PowerShell on Windows) in the project folder.
 2. Run:
-   ```powershell
-   cd $HOME\Desktop\vobiz-n8n
+   ```
    npm run n8n
    ```
+   Add `-- --no-tunnel` to start without a public address, or `-- --port 5700` for another port.
 3. Wait for `Editor is now accessible`. The first start takes a few minutes while n8n sets up its database.
 4. The window shows two addresses. Keep the window open; closing it stops n8n.
    - **Open n8n here:** `http://localhost:5688`
@@ -28,7 +28,7 @@ call below lasts under a minute.
 5. Open `http://localhost:5688` in your browser. The first time, n8n shows **Set up owner account**. **Fill it in straight away, with a strong password** (8+ characters, with a number and a capital letter), then click **Next**. The public address leads to the same n8n, and whoever creates the owner account first controls it.
 6. n8n then shows an **AI Assistant** page. Click **Set up later in Settings**.
 
-To stop: click the PowerShell window and press **Ctrl+C**.
+To stop: click the terminal window and press **Ctrl+C**.
 
 ## 2. Add your Vobiz login once
 
@@ -40,15 +40,21 @@ To stop: click the PowerShell window and press **Ctrl+C**.
 
 ## 3. Import the test workflows
 
-The folder `test-workflows` holds seven ready-made workflows with the phone numbers left blank. To get copies with your own numbers filled in, run this in PowerShell from the project folder (the first variable is the Vobiz numbers you'll test with, separated by commas; the second is your own mobile):
+The folder `test-workflows` holds seven ready-made workflows with the phone numbers left blank. To get copies with your own numbers filled in, run this from the project folder (the first variable is the Vobiz numbers you'll test with, separated by commas; the second is your own mobile):
 
 ```powershell
+# Windows (PowerShell)
 $env:VOBIZ_TEST_NUMBERS = '+91XXXXXXXXXX'
 $env:VOBIZ_TEST_MY_MOBILE = '+91XXXXXXXXXX'
 node scripts/make-test-workflows.js
 ```
 
-That writes the same seven into `test-workflows\local`. Use those instead. The folder is ignored by git, so your numbers stay on your computer.
+```bash
+# macOS / Linux
+VOBIZ_TEST_NUMBERS='+91XXXXXXXXXX' VOBIZ_TEST_MY_MOBILE='+91XXXXXXXXXX' node scripts/make-test-workflows.js
+```
+
+That writes the same seven into `test-workflows/local`. Use those instead. The folder is ignored by git, so your numbers stay on your computer.
 
 For each one:
 
@@ -144,7 +150,7 @@ File: `7 - WhatsApp auto-reply.json`
 ## When you're done
 
 1. Switch off workflows 1 and 7: click **Published**, then **Unpublish**. That gives your n8n numbers back (they show **not linked** again), and removes the Vobiz application and the WhatsApp subscription they created.
-2. Then press **Ctrl+C** in the PowerShell window.
+2. Then press **Ctrl+C** in the terminal window.
 
 If you stop n8n while they're still on, unpublish and publish them again after the next start: the public address has changed, and n8n doesn't tell Vobiz about the new one by itself.
 
@@ -153,7 +159,7 @@ If you stop n8n while they're still on, unpublish and publish them again after t
 | You see | Why | Fix |
 |---|---|---|
 | `Vobiz did not accept the Auth ID or Auth Token` | The credential is wrong | Copy both again from **Settings → API** |
-| `Vobiz cannot reach an Answer URL on localhost` | You copied the Test URL, or started with `-NoTunnel` | Copy the **Production URL** after publishing workflow 1 |
+| `Vobiz cannot reach an Answer URL on localhost` | You copied the Test URL, or started with `--no-tunnel` | Copy the **Production URL** after publishing workflow 1 |
 | The phone rings, but there is silence and then it hangs up | Workflow 1 is not published, or n8n was restarted and the address changed | Publish workflow 1, copy its Production URL again, and paste it into Make a Call |
 | Publishing test 1 fails with `… already answers calls for the Vobiz application …` | That number is used by another setup, such as a CRM integration | Choose a number marked **not linked**. The trigger won't take a number from anything else |
 | After restarting n8n, the phone line or the WhatsApp trigger gets nothing | The tunnel address is new every start, and n8n doesn't re-register published triggers when it restarts, so Vobiz still sends to the old address | In each published trigger workflow: arrow next to **Published** → **Unpublish**, then **Publish** again. That registers it at the new address |
