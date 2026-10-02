@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Vobiz Call Answered Trigger** now checks Vobiz's signature on every call event (`X-Vobiz-Signature-V3`, or V2), so nobody who learns the trigger's address can start the workflow with made-up calls. A new **Require Vobiz Signature** setting, on by default, also refuses unsigned events; turn it off only if your Vobiz account does not sign them.
+
 ## 0.1.0
 
 First version.
