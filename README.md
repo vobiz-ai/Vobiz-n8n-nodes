@@ -179,6 +179,8 @@ Built with [`@n8n/node-cli`](https://www.npmjs.com/package/@n8n/node-cli) and te
 
 ## Development
 
+Use a current Node.js 24 (see `.nvmrc`; 24.21 or newer). The npm bundled with older 24.x releases (11.9 and earlier) rejects the lockfile in `npm ci`.
+
 ```bash
 git clone https://github.com/vobiz-ai/Vobiz-n8n-nodes.git
 cd Vobiz-n8n-nodes
@@ -188,7 +190,7 @@ npm run lint    # n8n's lint rules
 npm test        # unit tests against a mock Vobiz API
 ```
 
-`npm run test:e2e` runs the built nodes inside a real n8n against the mock API, so nothing is called, texted or billed. To run a local n8n with the nodes loaded and test against a real Vobiz account, see [TESTING.md](TESTING.md).
+`npm run test:e2e` runs the built nodes inside a real n8n against the mock API, so nothing is called, texted or billed. To run a local n8n with the nodes loaded and test against a real Vobiz account, run `npm run n8n` (Windows, macOS or Linux) and see [TESTING.md](TESTING.md).
 
 Issues and pull requests are welcome.
 

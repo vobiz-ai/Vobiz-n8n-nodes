@@ -35,7 +35,7 @@
 		"prepublishOnly": "n8n-node prerelease",
 		"test": "npm run build && node --test \"test/*.test.js\"",
 		"test:e2e": "npm run build && node test/e2e/run-e2e.js",
-		"n8n": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-n8n.ps1"
+		"n8n": "node scripts/start-n8n.js"
 	},
 	"files": [
 		"dist",
