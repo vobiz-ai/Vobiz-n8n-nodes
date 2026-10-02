@@ -1,6 +1,6 @@
 {
 	"name": "@vobiz-ai/n8n-nodes-vobiz",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "n8n nodes for Vobiz: make calls, get call records and recordings, send WhatsApp messages, and start workflows from calls and WhatsApp messages.",
 	"license": "MIT",
 	"homepage": "https://www.vobiz.ai",
@@ -38,7 +38,8 @@
 		"n8n": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-n8n.ps1"
 	},
 	"files": [
-		"dist"
+		"dist",
+		"!dist/tsconfig.tsbuildinfo"
 	],
 	"publishConfig": {
 		"access": "public"
