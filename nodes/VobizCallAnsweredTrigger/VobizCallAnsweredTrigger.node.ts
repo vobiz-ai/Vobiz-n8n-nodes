@@ -27,6 +27,7 @@ import {
 	numberKey,
 	trunkOf,
 } from '../shared/numbers';
+import { checkVobizSignature } from '../shared/signature';
 import { httpStatusOf, vobizApiRequest, vobizApiRequestIfFound } from '../shared/transport';
 import { assertPublicWebhookUrl, safeName } from '../shared/webhooks';
 
@@ -51,6 +52,32 @@ function configuredNumbers(context: IHookFunctions): string[] {
 	const value = context.getNodeParameter('numbers', []) as string[] | string;
 	const list = Array.isArray(value) ? value : String(value).split(',');
 	return [...new Set(list.map((number) => String(number).trim()).filter(Boolean))];
+}
+
+/**
+ * Why a request should be refused as not coming from Vobiz, or '' to accept it.
+ * A request with a Vobiz signature must match this account's Auth Token. One
+ * without a signature is accepted only when Require Vobiz Signature is off.
+ */
+async function signatureProblem(context: IWebhookFunctions): Promise<string> {
+	const headers = context.getHeaderData() as Record<string, string | string[] | undefined>;
+	const credentials = await context.getCredentials('vobizApi');
+	const authToken = String(credentials.authToken ?? '').trim();
+	// Vobiz signs the address it called: the production one, or the test one while listening.
+	const resourceUrl = (
+		context as IWebhookFunctions & { getWebhookResourceUrl?: (name: string) => string | undefined }
+	).getWebhookResourceUrl?.('default');
+	const addresses = [context.getNodeWebhookUrl('default'), resourceUrl].filter(
+		(address): address is string => Boolean(address),
+	);
+
+	const check = checkVobizSignature(headers, addresses, authToken);
+	if (check === 'valid') return '';
+	if (check === 'invalid') {
+		return 'its Vobiz signature did not match. Check that this trigger uses the credential of the Vobiz account that owns the call, and that n8n\'s WEBHOOK_URL is the public address Vobiz calls.';
+	}
+	if (context.getNodeParameter('requireSignature', true) === false) return '';
+	return 'it had no Vobiz signature. If your Vobiz account does not sign callbacks, turn off Require Vobiz Signature on this trigger.';
 }
 
 function toNumber(value: unknown): number | null {
@@ -115,6 +142,14 @@ export class VobizCallAnsweredTrigger implements INodeType {
 					},
 				],
 				default: [CALL_ANSWERED],
+			},
+			{
+				displayName: 'Require Vobiz Signature',
+				name: 'requireSignature',
+				type: 'boolean',
+				default: true,
+				description:
+					'Whether to refuse requests that are not signed by Vobiz. Vobiz signs each call event with your Auth Token, so nobody who learns this address can start the workflow with made-up calls. A signed request that does not match is always refused.',
 			},
 			{
 				displayName: 'Answer Incoming Calls On Names or IDs',
@@ -431,6 +466,13 @@ export class VobizCallAnsweredTrigger implements INodeType {
 		const query = this.getQueryData() as IDataObject;
 		const res = this.getResponseObject();
 		const events = this.getNodeParameter('events', [CALL_ANSWERED]) as string[];
+
+		const problem = await signatureProblem(this);
+		if (problem) {
+			this.logger.warn(`Vobiz Call Answered Trigger: a request was refused: ${problem}`);
+			res.status(403).send('Signature did not match');
+			return { noWebhookResponse: true };
+		}
 
 		const event = String(body.Event ?? '').toLowerCase();
 		const status = String(body.CallStatus ?? '').toLowerCase();

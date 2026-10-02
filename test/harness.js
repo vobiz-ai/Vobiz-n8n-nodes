@@ -162,7 +162,17 @@ function fakeResponse() {
 	return res;
 }
 
-function webhookContext({ credentials, params = {}, staticData, body = {}, query = {}, headers = {}, rawBody }) {
+function webhookContext({
+	credentials,
+	params = {},
+	staticData,
+	body = {},
+	query = {},
+	headers = {},
+	rawBody,
+	webhookUrl,
+	resourceUrl,
+}) {
 	const res = fakeResponse();
 	const context = {
 		...base({ credentials, staticData }),
@@ -172,6 +182,9 @@ function webhookContext({ credentials, params = {}, staticData, body = {}, query
 		getHeaderData: () => headers,
 		getRequestObject: () => ({ headers, rawBody, body, query }),
 		getResponseObject: () => res,
+		// n8n: the production address, and the address actually being served.
+		getNodeWebhookUrl: () => webhookUrl,
+		getWebhookResourceUrl: () => resourceUrl ?? webhookUrl,
 	};
 	return { context, res };
 }

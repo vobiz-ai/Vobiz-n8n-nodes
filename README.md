@@ -104,6 +104,7 @@ Settings:
 - **Trigger On:** *Call Answered*, *Call Ended*, or both. *Call Ended* fires the moment the call finishes, with its duration, whether it was answered and how it ended.
 - **Outgoing calls:** paste the trigger's **Production URL** into **Answer URL** on *Vobiz → Call → Make*.
 - **Incoming calls:** choose numbers in **Answer Incoming Calls On**. They are connected when you publish the workflow and released when you unpublish it.
+- **Require Vobiz Signature** (on by default): Vobiz signs every call event with your Auth Token. The trigger checks that signature, so someone who learns its address cannot start your workflow with made-up calls. A signature that does not match is always refused. Turn this off only if your Vobiz account sends events without a signature.
 
 When the workflow is published, the trigger creates a Vobiz application for its address, named `n8n-call-answered-…`. It removes the application when the workflow is unpublished.
 
@@ -157,6 +158,7 @@ When a call is answered, Vobiz asks a web address what to say. The Call Answered
 
 - Your Auth ID and Auth Token are kept in n8n's encrypted credential store and are sent only to Vobiz.
 - Recording downloads send your credential only to Vobiz hosts, never to any other domain.
+- Call events to the Call Answered Trigger are verified against Vobiz's `X-Vobiz-Signature-V3` (or V2) header, an HMAC-SHA256 of the trigger's address and a nonce, keyed with your Auth Token. Forged events are rejected with 403, and so are unsigned ones while **Require Vobiz Signature** is on.
 - WhatsApp events are verified with HMAC-SHA256, using a secret created for each subscription. Unsigned or forged events are rejected.
 - The package has no runtime dependencies beyond n8n itself.
 
@@ -171,6 +173,8 @@ When a call is answered, Vobiz asks a web address what to say. The Call Answered
 | `Your Vobiz balance is too low for this` | Your account balance | Top up in the Vobiz console |
 | `The template "…" is PENDING_REVIEW, not approved` | Meta hasn't approved the template yet | Wait for approval, or choose another template |
 | `No recent call matches these filters` | No matching call yet | Make and answer a call, wait a minute, and fetch again |
+| The phone rings, then silence, and n8n's log says `a request was refused: it had no Vobiz signature` | Your Vobiz account sends call events without a signature | Turn off **Require Vobiz Signature** on the Call Answered Trigger |
+| n8n's log says `a request was refused: its Vobiz signature did not match` | The trigger's credential is for a different Vobiz account than the call, or `WEBHOOK_URL` is not the address Vobiz calls | Use the credential of the account that owns the number, and set `WEBHOOK_URL` to n8n's public address |
 | Triggers stop receiving events after n8n restarts | n8n's public address changed | Unpublish and publish the workflow again |
 
 ## Compatibility

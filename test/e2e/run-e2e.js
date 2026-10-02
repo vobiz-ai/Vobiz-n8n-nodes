@@ -310,9 +310,22 @@ async function main() {
 		check('switching on the WhatsApp Trigger registered a subscription with a secret', Boolean(subscription?.secret), JSON.stringify(subscriptions));
 
 		step('Vobiz asking the Call Answered Trigger what to say');
-		const answer = await fetch(`${N8N}/webhook/e2e-answered-hook/call-answered?vobizMessage=${encodeURIComponent('Your OTP is 4 2 7 1')}`, {
+		// Vobiz signs the public address it called, without the query string, with the Auth Token.
+		const answeredBase = `${PUBLIC_URL}webhook/e2e-answered-hook/call-answered`;
+		const vobizSigned = (nonce) => ({
+			'Content-Type': 'application/x-www-form-urlencoded',
+			'X-Vobiz-Signature-V3': crypto.createHmac('sha256', 'test-token-not-real').update(`${answeredBase}.${nonce}`).digest('base64'),
+			'X-Vobiz-Signature-V3-Nonce': nonce,
+		});
+		const forged = await fetch(`${N8N}/webhook/e2e-answered-hook/call-answered`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({ CallUUID: 'forged-1', Event: 'Hangup', CallStatus: 'completed' }),
+		});
+		check('a request without a Vobiz signature is refused with 403', forged.status === 403, String(forged.status));
+		const answer = await fetch(`${N8N}/webhook/e2e-answered-hook/call-answered?vobizMessage=${encodeURIComponent('Your OTP is 4 2 7 1')}`, {
+			method: 'POST',
+			headers: vobizSigned('10000000000000000001'),
 			body: new URLSearchParams({ CallUUID: 'live-call-1', From: '918012345678', To: '919876543210', Direction: 'outbound', CallStatus: 'in-progress', Event: 'StartApp' }),
 		});
 		const xml = await answer.text();
@@ -320,7 +333,7 @@ async function main() {
 		check('the XML speaks the message from Make a Call', xml.includes('>Your OTP is 4 2 7 1</Speak>') && xml.includes('<Hangup/>'), xml);
 		const hangup = await fetch(`${N8N}/webhook/e2e-answered-hook/call-answered?vobizEvent=hangup`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			headers: vobizSigned('10000000000000000002'),
 			body: new URLSearchParams({
 				CallUUID: 'live-call-1',
 				From: '918012345678',

@@ -225,6 +225,23 @@ test('Call Answered: refuses addresses Vobiz cannot reach', async () => {
 	}
 });
 
+const ANSWERED_URL = 'https://n8n.example.com/webhook/0f1e2d3c/call-answered';
+const ANSWERED_TEST_URL = 'https://n8n.example.com/webhook-test/0f1e2d3c/call-answered';
+
+/** The V3 headers Vobiz sends on a callback to `address`, signed with `authToken`. */
+function vobizSigned(address, authToken = AUTH_TOKEN, nonce = '12345678901234567890') {
+	const url = new URL(address);
+	const base = `${url.protocol}//${url.host}${url.pathname}`;
+	return {
+		'x-vobiz-signature-v3': createHmac('sha256', authToken).update(`${base}.${nonce}`).digest('base64'),
+		'x-vobiz-signature-v3-nonce': nonce,
+	};
+}
+
+/** A request to the Call Answered Trigger, signed by Vobiz unless the test says otherwise. */
+const answeredContext = (options) =>
+	webhookContext({ webhookUrl: ANSWERED_URL, headers: vobizSigned(ANSWERED_URL), credentials, ...options });
+
 const answeredParams = {
 	message: 'Hello from n8n & Vobiz <test>',
 	voice: 'WOMAN',
@@ -233,7 +250,7 @@ const answeredParams = {
 };
 
 test('Call Answered: replies at once with a safe call script, and starts the workflow', async () => {
-	const { context, res } = webhookContext({
+	const { context, res } = answeredContext({
 		credentials,
 		params: answeredParams,
 		body: { CallUUID: 'call-1', From: '918012345678', To: '919876543210', Direction: 'outbound', CallStatus: 'in-progress', Event: 'StartApp' },
@@ -252,7 +269,7 @@ test('Call Answered: replies at once with a safe call script, and starts the wor
 });
 
 test('Call Answered: the Message from Make a Call wins over the trigger message', async () => {
-	const { context, res } = webhookContext({
+	const { context, res } = answeredContext({
 		credentials,
 		params: { ...answeredParams, options: { pauseSeconds: 0, playUrl: 'https://example.com/a.mp3?x=1&y=2' } },
 		query: { vobizMessage: 'Your OTP is 4 2 7 1' },
@@ -265,7 +282,7 @@ test('Call Answered: the Message from Make a Call wins over the trigger message'
 });
 
 test('Call Answered: a hangup report is acknowledged, and starts nothing unless Call Ended is chosen', async () => {
-	const { context, res } = webhookContext({
+	const { context, res } = answeredContext({
 		credentials,
 		params: { ...answeredParams, events: ['callAnswered'] },
 		body: { CallUUID: 'call-3', Event: 'Hangup', CallStatus: 'completed' },
@@ -276,7 +293,7 @@ test('Call Answered: a hangup report is acknowledged, and starts nothing unless 
 });
 
 test('Call Answered: with Call Ended chosen, the end of the call starts the workflow at once', async () => {
-	const { context, res } = webhookContext({
+	const { context, res } = answeredContext({
 		credentials,
 		params: { ...answeredParams, events: ['callAnswered', 'callEnded'] },
 		body: {
@@ -308,7 +325,7 @@ test('Call Answered: with Call Ended chosen, the end of the call starts the work
 });
 
 test('Call Answered: an unanswered call is reported as ended, not answered', async () => {
-	const { context } = webhookContext({
+	const { context } = answeredContext({
 		credentials,
 		params: { ...answeredParams, events: ['callEnded'] },
 		query: { vobizEvent: 'hangup' },
@@ -321,7 +338,7 @@ test('Call Answered: an unanswered call is reported as ended, not answered', asy
 });
 
 test('Call Answered: with only Call Ended chosen, it still answers the call but starts nothing then', async () => {
-	const { context, res } = webhookContext({
+	const { context, res } = answeredContext({
 		credentials,
 		params: { ...answeredParams, events: ['callEnded'] },
 		body: { CallUUID: 'call-7', Event: 'StartApp', CallStatus: 'in-progress' },
@@ -345,7 +362,7 @@ test('Call Answered: the numbers list says which are free and which are taken', 
 });
 
 test('Call Answered: Custom XML replaces the script, with or without <Response>', async () => {
-	const { context, res } = webhookContext({
+	const { context, res } = answeredContext({
 		credentials,
 		params: { ...answeredParams, options: { customXml: '<Speak>Custom</Speak>' } },
 		body: { CallUUID: 'call-4', Event: 'StartApp' },
@@ -353,6 +370,78 @@ test('Call Answered: Custom XML replaces the script, with or without <Response>'
 	const result = await answered.webhook.call(context);
 	assert.equal(res.body, '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n<Speak>Custom</Speak>\n</Response>');
 	assert.equal(result.workflowData[0][0].json.message, null);
+});
+
+test('Call Answered: a request without a Vobiz signature is refused, and starts nothing', async () => {
+	const { context, res } = answeredContext({
+		params: { ...answeredParams, events: ['callAnswered', 'callEnded'] },
+		headers: {},
+		body: { CallUUID: 'forged', Event: 'Hangup', CallStatus: 'completed' },
+	});
+	logger.lines.length = 0;
+	const result = await answered.webhook.call(context);
+	assert.equal(res.statusCode, 403);
+	assert.equal(result.workflowData, undefined);
+	assert.match(logger.lines.at(-1)[1], /no Vobiz signature.*turn off Require Vobiz Signature/);
+});
+
+test('Call Answered: a signature made with another token, or for another address, is refused', async () => {
+	for (const headers of [
+		vobizSigned(ANSWERED_URL, 'not-the-auth-token'),
+		vobizSigned('https://elsewhere.example.com/webhook/0f1e2d3c/call-answered'),
+		{ ...vobizSigned(ANSWERED_URL), 'x-vobiz-signature-v3-nonce': '99999999999999999999' },
+	]) {
+		const { context, res } = answeredContext({
+			params: { ...answeredParams, requireSignature: false },
+			headers,
+			body: { CallUUID: 'forged', Event: 'StartApp' },
+		});
+		const result = await answered.webhook.call(context);
+		assert.equal(res.statusCode, 403, 'a wrong signature is refused even with Require Vobiz Signature off');
+		assert.equal(result.workflowData, undefined);
+	}
+});
+
+test('Call Answered: V2 and sub-account signatures, the test address, and query strings all verify', async () => {
+	const nonce = '11112222333344445555';
+	const v2 = createHmac('sha256', AUTH_TOKEN).update(`${ANSWERED_URL}${nonce}`).digest('base64');
+	const cases = [
+		// V2 only.
+		{ headers: { 'X-Vobiz-Signature-V2': v2, 'X-Vobiz-Signature-V2-Nonce': nonce } },
+		// A sub-account callback whose V3 is signed with another token but MA-V3 with this one.
+		{
+			headers: {
+				'x-vobiz-signature-v3': vobizSigned(ANSWERED_URL, 'sub-account-token')['x-vobiz-signature-v3'],
+				'x-vobiz-signature-ma-v3': vobizSigned(ANSWERED_URL)['x-vobiz-signature-v3'],
+				'x-vobiz-signature-v3-nonce': '12345678901234567890',
+			},
+		},
+		// Listening for a test event: Vobiz called the /webhook-test/ address.
+		{ headers: vobizSigned(ANSWERED_TEST_URL), resourceUrl: ANSWERED_TEST_URL },
+		// Make a Call adds ?vobizMessage=... and ?vobizEvent=hangup; Vobiz signs without the query.
+		{ headers: vobizSigned(`${ANSWERED_URL}?vobizEvent=hangup`), query: { vobizEvent: 'hangup' } },
+	];
+	for (const extra of cases) {
+		const { context, res } = answeredContext({
+			params: answeredParams,
+			body: { CallUUID: 'call-5', Event: 'StartApp' },
+			...extra,
+		});
+		await answered.webhook.call(context);
+		assert.equal(res.statusCode, 200, JSON.stringify(extra.headers));
+	}
+});
+
+test('Call Answered: with Require Vobiz Signature off, an unsigned request is answered', async () => {
+	const { context, res } = answeredContext({
+		params: { ...answeredParams, requireSignature: false },
+		headers: {},
+		body: { CallUUID: 'call-6', Event: 'StartApp' },
+	});
+	const result = await answered.webhook.call(context);
+	assert.equal(res.statusCode, 200);
+	assert.match(res.body, /<Speak/);
+	assert.equal(result.workflowData[0][0].json.call_uuid, 'call-6');
 });
 
 // ---------------------------------------------------------------- WhatsApp Trigger
