@@ -83,7 +83,17 @@ export const callFields: INodeProperties[] = [
 		default: '',
 		placeholder: 'e.g. Hi Asha, your appointment is tomorrow at 10 am.',
 		description:
-			'What to say when the call is answered. Works when the Answer URL is a Vobiz Call Answered Trigger. Leave empty to use the message set on the trigger.',
+			'What to say when the call is answered. Works when the Answer URL is a Vobiz Call Answered Trigger. Leave empty to use the message set on the trigger, or, with Connect To, to say nothing.',
+		displayOptions: showForMake,
+	},
+	{
+		displayName: 'Connect To',
+		name: 'connectTo',
+		type: 'string',
+		default: '',
+		placeholder: 'e.g. +919876543210',
+		description:
+			'For a call between two people: once the person in To answers, connect them to this number. They hear the Message first, if you set one. Needs a Vobiz Call Answered Trigger as the Answer URL. Separate several numbers with commas: they all ring, and the first to answer is connected.',
 		displayOptions: showForMake,
 	},
 	{

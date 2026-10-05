@@ -40,21 +40,27 @@ To stop: click the terminal window and press **Ctrl+C**.
 
 ## 3. Import the test workflows
 
-The folder `test-workflows` holds seven ready-made workflows with the phone numbers left blank. To get copies with your own numbers filled in, run this from the project folder (the first variable is the Vobiz numbers you'll test with, separated by commas; the second is your own mobile):
+The folder `test-workflows` holds ten ready-made workflows with the phone numbers left blank. To get copies with your own details filled in, run this from the project folder. The variables are:
+- the Vobiz numbers you'll test with, separated by commas;
+- your own mobile;
+- your own email, for the KYC test;
+- a second phone of yours to act as the agent, for the forwarding test.
 
 ```powershell
 # Windows (PowerShell)
 $env:VOBIZ_TEST_NUMBERS = '+91XXXXXXXXXX'
 $env:VOBIZ_TEST_MY_MOBILE = '+91XXXXXXXXXX'
+$env:VOBIZ_TEST_MY_EMAIL = 'you@example.com'
+$env:VOBIZ_TEST_AGENT = '+91XXXXXXXXXX'
 node scripts/make-test-workflows.js
 ```
 
 ```bash
 # macOS / Linux
-VOBIZ_TEST_NUMBERS='+91XXXXXXXXXX' VOBIZ_TEST_MY_MOBILE='+91XXXXXXXXXX' node scripts/make-test-workflows.js
+VOBIZ_TEST_NUMBERS='+91XXXXXXXXXX' VOBIZ_TEST_MY_MOBILE='+91XXXXXXXXXX' VOBIZ_TEST_MY_EMAIL='you@example.com' VOBIZ_TEST_AGENT='+91XXXXXXXXXX' node scripts/make-test-workflows.js
 ```
 
-That writes the same seven into `test-workflows/local`. Use those instead. The folder is ignored by git, so your numbers stay on your computer.
+That writes the same ten into `test-workflows/local`. Use those instead. The folder is ignored by git, so your numbers stay on your computer.
 
 For each one:
 
@@ -99,6 +105,17 @@ File: `2 - Make a call.json`
 - Workflow 1's **Executions** shows *call answered*, then *call ended*, as they happen.
 
 To hear test 1's own message instead, empty the **Message** field in Make a Call.
+
+### Test 2b: a call between two people (Make a Call → Connect To)
+File: `2 - Make a call.json` again
+
+1. In test 1's trigger, set **Then** back to **Hang Up**. Connect To does not need the trigger's own forwarding.
+2. In **Make a Call**: **To** is your own mobile. **Connect To** is a second phone you own. Empty **Message** to connect without a greeting.
+3. Click **Execute workflow**.
+
+**Expected:** your mobile rings. When you answer, the second phone rings, showing your n8n number. Answer it: the two phones are connected. Hang up either phone and the call ends.
+
+Then try once without answering the second phone: after about 30 seconds your mobile hears *"Sorry, nobody is available to take your call right now. Goodbye."*
 
 ### Test 3: every call on the account (Vobiz Trigger)
 File: `3 - Every call on the account.json`
@@ -147,9 +164,62 @@ File: `7 - WhatsApp auto-reply.json`
 
 **Expected:** you get back *"Thanks <your name>! We got your message: …"*.
 
+### Test 8: sub-accounts (Vobiz → Sub-Account)
+File: `8 - Sub-accounts.json`
+
+Sub-accounts are made with the **main account's** credential (its Auth ID starts with `MA_`). If you share that account with other people, tell them first: this test adds a sub-account named *n8n test sub-account* for a few seconds.
+
+1. Pick the main account's credential in every Vobiz node.
+2. Click **Execute workflow**.
+
+**Expected:**
+- **Create Test Sub-Account** shows an `auth_id` starting with `SA_` and an `auth_token`.
+- **Get It** shows the same sub-account, without the `auth_token`.
+- **Change It** shows the new description, and `cdr: false` under permissions.
+- **Delete It** shows `deleted: true`.
+- **List Sub-Accounts** no longer lists *n8n test sub-account*.
+
+Optional, by hand: **Assign Number** and **Unassign Number**. Use only a number that has had **no calls in the last 15 days**. Vobiz keeps a recently used number with the sub-account for 15 days after its last call, and Unassign Number then says until when.
+
+### Test 9: sub-account KYC (Vobiz → Sub-Account → Start KYC, and the Vobiz KYC Trigger)
+File: `9 - Sub-account KYC.json`
+
+1. Pick the main account's credential in every Vobiz node and in **Vobiz KYC Trigger**.
+2. Click **Publish**. Open **Vobiz KYC Trigger**, copy its **Production URL**, and paste it into **Start KYC → Options → Webhook URL**.
+3. Check **Customer Email** on **Create Customer Sub-Account** (your own email).
+4. Click **Execute workflow**.
+
+**Expected:**
+- **Create Customer Sub-Account** shows `kyc_calls_blocked: true`.
+- **Start KYC** shows a `widget_url` link to the Vobiz KYC page. Don't submit documents: this test only checks the link and the events.
+- **KYC Status** shows the KYC as not done yet, and `kyc_calls_blocked: true`.
+- In **Executions**, the trigger has run for *KYC Started* (`kyc.initiated`).
+
+Then clean up: open **Delete Test Sub-Account (run last)**, pick *n8n KYC test* from the list, and click **Execute step**.
+
+### Test 10: call menu, forwarding and voicemail (Vobiz Call Answered Trigger, Then)
+File: `10 - Call menu (forward, voicemail).json`
+
+1. **Unpublish test 1 first.** Both answer calls on the same numbers, and a number can only belong to one trigger.
+2. In the trigger, **Menu Choices**, key 1: **Forward To** is your agent phone (already set in the `local` copy).
+3. Pick your credential in the trigger and in **Download Voicemail**. Click **Publish**.
+4. From your mobile, call your n8n number three times:
+   - **Press 2.** You hear the opening hours, then the call ends.
+   - **Press 3.** You hear the prompt, then a beep. Say something, then press **#**. You hear "Thank you. Your message has been recorded."
+   - **Press 1.** You hear "Connecting you to an agent", and the agent phone rings, showing your n8n number. Let it ring out (20 seconds): you hear the voicemail prompt. Hang up.
+5. Call once more and press **7**. You hear "Sorry, that is not one of the choices", and the menu again.
+
+**Expected in Executions:**
+- one run per key pressed (`call.key_pressed`, with the key);
+- one for the forward that nobody answered (`call.forward_finished`, `answered: false`);
+- one per voicemail (`call.voicemail_recorded`), whose **Download Voicemail** has the audio under **Binary**;
+- one for each call's end.
+
+Then answer the agent phone on another call with key 1: the two phones are connected, and `call.forward_finished` says `answered: true` when the call ends.
+
 ## When you're done
 
-1. Switch off workflows 1 and 7: click **Published**, then **Unpublish**. That gives your n8n numbers back (they show **not linked** again), and removes the Vobiz application and the WhatsApp subscription they created.
+1. Switch off workflows 1, 7, 9 and 10: click **Published**, then **Unpublish**. That gives your n8n numbers back (they show **not linked** again), and removes the Vobiz application and the WhatsApp subscription they created.
 2. Then press **Ctrl+C** in the terminal window.
 
 If you stop n8n while they're still on, unpublish and publish them again after the next start: the public address has changed, and n8n doesn't tell Vobiz about the new one by itself.

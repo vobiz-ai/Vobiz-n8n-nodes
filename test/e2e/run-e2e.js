@@ -156,13 +156,65 @@ async function main() {
 				bodyVariables: { variable: [{ value: 'ORD-1' }] },
 				templateOptions: {},
 			}, 600),
+			vobizNode('Create Sub-Account', {
+				resource: 'subAccount',
+				operation: 'create',
+				name: 'E2E team',
+				kycMode: 'personal_use',
+				additionalFields: { description: 'made by the e2e run', canReadCallRecords: false },
+			}, 750),
+			vobizNode('Sub-Accounts', { resource: 'subAccount', operation: 'getAll', returnAll: false, limit: 10, filters: {} }, 900),
+			vobizNode('Assign Number', {
+				resource: 'subAccount',
+				operation: 'assignNumber',
+				subAccount: { __rl: true, mode: 'id', value: 'SA_SEED0001' },
+				// Called two days ago (see the mock), so taking it back hits the 15-day cool-off.
+				number: { __rl: true, mode: 'number', value: '+918012345601' },
+			}, 1050),
+			vobizNode('KYC Status', {
+				resource: 'subAccount',
+				operation: 'getKycStatus',
+				subAccount: { __rl: true, mode: 'id', value: 'SA_SEED0001' },
+			}, 1200),
+			vobizNode('Start KYC', {
+				resource: 'subAccount',
+				operation: 'startKyc',
+				subAccount: { __rl: true, mode: 'id', value: 'SA_SEED0001' },
+				sendLinkBy: 'redirect',
+				redirectUrl: 'https://example.com/kyc-done',
+				kycOptions: { webhookUrl: `${PUBLIC_URL}webhook/e2e-kyc-hook/kyc`, metadataJson: '{"crm_id": "CRM-E2E"}' },
+			}, 1350),
+			// A call between two people: rings To, then connects it to Connect To through the menu trigger.
+			vobizNode('Connect Two People', {
+				resource: 'call',
+				operation: 'make',
+				from: { __rl: true, mode: 'number', value: '+918012345601' },
+				to: '+91 98765 43210',
+				answerUrl: `${PUBLIC_URL}webhook/e2e-menu-hook/call-answered`,
+				message: '',
+				connectTo: '+91 98450 00009',
+				options: {},
+			}, 1500),
 		];
+		// Runs after Assign Number, and is expected to fail: it carries on so the message can be checked.
+		const unassign = {
+			...vobizNode('Unassign (cool-off)', {
+				resource: 'subAccount',
+				operation: 'unassignNumber',
+				number: { __rl: true, mode: 'number', value: '+918012345601' },
+			}, 1050),
+			position: [600, 1050],
+			onError: 'continueRegularOutput',
+		};
 		const workflows = [
 			workflow(
 				'e2eActions000001',
 				'E2E Vobiz actions',
-				[{ id: crypto.randomUUID(), name: 'Start', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 300], parameters: {} }, ...actions],
-				{ Start: { main: [actions.map((node) => ({ node: node.name, type: 'main', index: 0 }))] } },
+				[{ id: crypto.randomUUID(), name: 'Start', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 300], parameters: {} }, ...actions, unassign],
+				{
+					Start: { main: [actions.map((node) => ({ node: node.name, type: 'main', index: 0 }))] },
+					'Assign Number': { main: [[{ node: unassign.name, type: 'main', index: 0 }]] },
+				},
 			),
 			workflow('e2eAnswered00001', 'E2E Call Answered Trigger', [
 				{
@@ -205,6 +257,45 @@ async function main() {
 					position: [0, 0],
 					webhookId: 'e2e-wa-hook',
 					parameters: { events: ['message.inbound'], channel: { __rl: true, mode: 'list', value: '' }, simplify: true },
+					credentials: cred,
+				},
+			]),
+			workflow('e2eMenuTrigger01', 'E2E Call Answered Trigger with a menu', [
+				{
+					id: crypto.randomUUID(),
+					name: 'Menu',
+					type: TYPE('vobizCallAnsweredTrigger'),
+					typeVersion: 1,
+					position: [0, 0],
+					webhookId: 'e2e-menu-hook',
+					parameters: {
+						events: ['keyPressed', 'forwardFinished', 'voicemailRecorded'],
+						numbers: [],
+						message: 'Press 1 for sales, 2 for our hours, 3 to leave a message.',
+						voice: 'WOMAN',
+						language: 'en-IN',
+						then: 'menu',
+						menuChoices: {
+							choice: [
+								{ key: '1', action: 'forward', reply: 'Connecting you to sales.', forwardTo: '+919845000001' },
+								{ key: '2', action: 'say', reply: 'We are open from 9 to 6. Goodbye.' },
+								{ key: '3', action: 'voicemail', reply: 'Please leave a message after the beep.' },
+							],
+						},
+						options: {},
+					},
+					credentials: cred,
+				},
+			]),
+			workflow('e2eKycTrigger001', 'E2E KYC Trigger', [
+				{
+					id: crypto.randomUUID(),
+					name: 'KYC',
+					type: TYPE('vobizKycTrigger'),
+					typeVersion: 1,
+					position: [0, 0],
+					webhookId: 'e2e-kyc-hook',
+					parameters: { events: ['kyc.completed', 'kyc.failed'], subAccount: { __rl: true, mode: 'list', value: '' }, requireSignature: true, simplify: true },
 					credentials: cred,
 				},
 			]),
@@ -259,8 +350,33 @@ async function main() {
 		check('WhatsApp, Send a template returns the queued message', outputOf('Send Template')[0]?.json?.status === 'pending', errorOf('Send Template'));
 		check('the template went with its WABA ID, language and a + on the number', send && send.body.waba_id === 'waba-1' && send.body.template.language.code === 'en_US' && send.body.to === '+918888888888', JSON.stringify(send?.body));
 
-		step('switching on the three triggers');
-		for (const id of ['e2eAnswered00001', 'e2eRefuseCrm0001', 'e2eWhatsAppTrg01', 'e2ePollCalls0001']) {
+		const created = outputOf('Create Sub-Account')[0]?.json ?? {};
+		check('Sub-Account, Create returns the new SA_ ID and its Auth Token, and no console tokens', /^SA_/.test(created.auth_id ?? '') && /^sa-secret-/.test(created.auth_token ?? '') && created.tokens === undefined, errorOf('Create Sub-Account') || JSON.stringify(created));
+		const createRequest = requests.find((r) => r.method === 'POST' && r.path === '/api/v1/accounts/MA_TEST123/sub-accounts/');
+		check('Create went to /accounts/{id}/sub-accounts/ with the permissions', createRequest && createRequest.body.permissions?.cdr === false && createRequest.body.kyc_mode === 'personal_use', JSON.stringify(createRequest?.body));
+		const listed = outputOf('Sub-Accounts');
+		check('Sub-Account, Get Many lists the sub-accounts without their tokens', listed.length >= 2 && listed.every((item) => !('auth_token' in item.json)), errorOf('Sub-Accounts'));
+		const assignRequest = requests.find((r) => r.method === 'POST' && r.path.endsWith('/assign-subaccount'));
+		check('Assign Number used /account/{id}/numbers/%2B.../assign-subaccount', assignRequest?.path === '/api/v1/account/MA_TEST123/numbers/%2B918012345601/assign-subaccount' && assignRequest.body.sub_account_id === 'SA_SEED0001', assignRequest?.path);
+		const coolOff = outputOf('Unassign (cool-off)')[0]?.json?.error ?? '';
+		check('Unassign Number in the 15-day cool-off says until when (read from Vobiz\'s reply inside n8n)', /keeps \+918012345601 with the sub-account until 20\d\d-/.test(coolOff), coolOff || JSON.stringify(outputOf('Unassign (cool-off)')));
+		check('Get KYC Status returns the status', outputOf('KYC Status')[0]?.json?.sub_account_id === 'SA_SEED0001', errorOf('KYC Status'));
+		const connectCall = requests.find((r) => r.method === 'POST' && r.path.endsWith('/Call/') && String(r.body?.answer_url).includes('vobizConnectTo'));
+		check(
+			'Make a Call with Connect To put the second number on the trigger address',
+			connectCall && new URL(connectCall.body.answer_url).searchParams.get('vobizConnectTo') === '+919845000009' && outputOf('Connect Two People')[0]?.json?.connect_to?.[0] === '+919845000009',
+			errorOf('Connect Two People') || JSON.stringify(connectCall?.body),
+		);
+		const kycSessions = await control('kyc-sessions');
+		check(
+			'Start KYC returned the link, and gave Vobiz the trigger\'s address and the metadata',
+			/^https:\/\/kyc\.vobiz\.ai\//.test(outputOf('Start KYC')[0]?.json?.widget_url ?? '') &&
+				kycSessions.some((s) => s.webhook_url === `${PUBLIC_URL}webhook/e2e-kyc-hook/kyc` && s.metadata?.crm_id === 'CRM-E2E'),
+			errorOf('Start KYC') || JSON.stringify(kycSessions),
+		);
+
+		step('switching on the triggers');
+		for (const id of ['e2eAnswered00001', 'e2eRefuseCrm0001', 'e2eWhatsAppTrg01', 'e2eMenuTrigger01', 'e2eKycTrigger001', 'e2ePollCalls0001']) {
 			out = n8n(['publish:workflow', `--id=${id}`]);
 			check(`publish ${id}`, out.status === 0, tail(out).slice(-400));
 		}
@@ -349,6 +465,46 @@ async function main() {
 		});
 		check('the end of the call gets a 200', hangup.status === 200, String(hangup.status));
 
+		step('a call menu: forward, say, voicemail');
+		{
+			const menuBase = `${PUBLIC_URL}webhook/e2e-menu-hook/call-answered`;
+			const signedFor = (nonce) => ({
+				'Content-Type': 'application/x-www-form-urlencoded',
+				'X-Vobiz-Signature-V3': crypto.createHmac('sha256', 'test-token-not-real').update(`${menuBase}.${nonce}`).digest('base64'),
+				'X-Vobiz-Signature-V3-Nonce': nonce,
+			});
+			let nonce = 30000000000000000000n;
+			const vobiz = async (query, fields) => {
+				nonce += 1n;
+				const response = await fetch(`${N8N}/webhook/e2e-menu-hook/call-answered${query}`, {
+					method: 'POST',
+					headers: signedFor(String(nonce)),
+					body: new URLSearchParams({ CallUUID: 'menu-call-1', From: '919876543210', To: '+918012345601', Direction: 'inbound', CallStatus: 'in-progress', ...fields }),
+				});
+				return { status: response.status, xml: await response.text() };
+			};
+			const connected = await vobiz('?vobizConnectTo=%2B919845000009', { Event: 'StartApp', Direction: 'outbound', From: '918012345601', To: '919876543210' });
+			check(
+				'answering a Connect To call goes straight to the second number, with no greeting and no menu',
+				connected.xml.includes('<Number>+919845000009</Number>') && connected.xml.includes('callerId="+918012345601"') && !connected.xml.includes('<Gather') && !connected.xml.includes('<Speak'),
+				connected.xml,
+			);
+			const answer = await vobiz('', { Event: 'StartApp' });
+			check('the menu plays inside a Gather that sends the key back to the trigger', answer.status === 200 && answer.xml.includes(`<Gather action="${menuBase}?vobizStep=menu&amp;vobizAttempt=1"`) && answer.xml.includes('Press 1 for sales'), answer.xml);
+			const one = await vobiz('?vobizStep=menu&vobizAttempt=1', { Event: 'Redirect', InputType: 'dtmf', Digits: '1' });
+			check('pressing 1 forwards the call to the sales number, with the call\'s own number as caller ID', one.xml.includes('<Number>+919845000001</Number>') && one.xml.includes('callerId="+918012345601"') && one.xml.includes(`action="${menuBase}?vobizStep=dial"`), one.xml);
+			const missed = await vobiz('?vobizStep=dial', { Event: 'DialAction', DialStatus: 'no-answer', DialHangupCause: 'NO_ANSWER' });
+			check('a forward nobody answered gets the no-answer message', missed.xml.includes('nobody is available') && missed.xml.includes('<Hangup/>'), missed.xml);
+			const two = await vobiz('?vobizStep=menu&vobizAttempt=1', { Event: 'Redirect', InputType: 'dtmf', Digits: '2' });
+			check('pressing 2 says its message and hangs up', two.xml.includes('We are open from 9 to 6. Goodbye.</Speak>\n  <Hangup/>'), two.xml);
+			const three = await vobiz('?vobizStep=menu&vobizAttempt=1', { Event: 'Redirect', InputType: 'dtmf', Digits: '3' });
+			check('pressing 3 records a voicemail, reported back to the trigger', three.xml.includes('<Record ') && three.xml.includes(`callbackUrl="${menuBase}?vobizStep=recorded"`), three.xml);
+			const recordStart = await vobiz('?vobizStep=record', { RecordingID: 'rec-e2e-1' });
+			check('the first recording event gets an empty Response', recordStart.xml.includes('<Response></Response>'), recordStart.xml);
+			const recorded = await vobiz('?vobizStep=recorded', { Event: 'RecordStop', CallStatus: 'completed', RecordingID: 'rec-e2e-1', RecordUrl: 'https://media.vobiz.ai/rec-e2e-1.mp3', RecordingDuration: '12' });
+			check('the finished recording is acknowledged', recorded.status === 200, String(recorded.status));
+		}
+
 		step('Vobiz delivering WhatsApp events');
 		if (subscription) {
 			const event = {
@@ -371,6 +527,29 @@ async function main() {
 				body: raw,
 			});
 			check('a forged event is refused with 401', bad.status === 401, String(bad.status));
+		}
+
+		step('Vobiz reporting a customer\'s KYC');
+		{
+			const event = {
+				event: 'kyc.completed',
+				timestamp: '2026-10-05T08:51:10Z',
+				session_id: 'kyc-session-e2e',
+				account_auth_id: 'SA_SEED0001',
+				customer_email: 'owner@acme.example',
+				kyc_type: 'individual',
+				session_status: 'kyc_completed',
+				metadata: { crm_id: 'CRM-E2E' },
+			};
+			const raw = JSON.stringify(event);
+			const sign = (token) => `sha256=${crypto.createHmac('sha256', token).update(raw).digest('hex')}`;
+			const kycUrl = `${N8N}/webhook/e2e-kyc-hook/kyc`;
+			const good = await fetch(kycUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vobiz-Signature': sign('test-token-not-real') }, body: raw });
+			check('a KYC event signed with the main account\'s Auth Token is accepted', good.status === 200, `${good.status} ${await good.text()}`);
+			const forged = await fetch(kycUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Vobiz-Signature': sign('not-the-token') }, body: raw });
+			check('a forged KYC event is refused with 401', forged.status === 401, String(forged.status));
+			const unsigned = await fetch(kycUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: raw });
+			check('an unsigned KYC event is refused with 401', unsigned.status === 401, String(unsigned.status));
 		}
 
 		step('the Vobiz Trigger: first check takes note, then a new call fires it (about two minutes)');
@@ -402,6 +581,20 @@ async function main() {
 		check('the trigger on the CRM number never ran', executionsOf('e2eRefuseCrm0001').length === 0);
 		const whatsAppRuns = executionsOf('e2eWhatsAppTrg01');
 		check('the WhatsApp Trigger started one run (the forged event started none)', whatsAppRuns.length === 1 && whatsAppRuns[0].status === 'success', JSON.stringify(whatsAppRuns));
+		const menuRuns = executionsOf('e2eMenuTrigger01');
+		check('the menu trigger started 5 runs: keys 1, 2 and 3, the missed forward, and the voicemail', menuRuns.length === 5 && menuRuns.every((r) => r.status === 'success'), JSON.stringify(menuRuns));
+		const menuData = query("SELECT d.data FROM execution_data d JOIN execution_entity e ON e.id = d.executionId WHERE e.workflowId = ? AND e.id > ? ORDER BY e.id", 'e2eMenuTrigger01', lastExecution)
+			.map((row) => row.data)
+			.join('\n');
+		check('the runs carry the key pressed, the forward result and the recording', ['call.key_pressed', 'call.forward_finished', 'call.voicemail_recorded', 'rec-e2e-1'].every((text) => menuData.includes(text)), menuData.slice(0, 300));
+		const kycRuns = executionsOf('e2eKycTrigger001');
+		check('the KYC Trigger started one run (the forged and unsigned events started none)', kycRuns.length === 1 && kycRuns[0].status === 'success', JSON.stringify(kycRuns));
+		const kycData = query(
+			'SELECT d.data FROM execution_data d JOIN execution_entity e ON e.id = d.executionId WHERE e.workflowId = ? AND e.id > ? ORDER BY e.id DESC LIMIT 1',
+			'e2eKycTrigger001',
+			lastExecution,
+		)[0]?.data ?? '';
+		check('the KYC run carries the sub-account and its result', kycData.includes('SA_SEED0001') && kycData.includes('kyc_completed') && kycData.includes('CRM-E2E'), kycData.slice(0, 300));
 	} finally {
 		if (server && server.exitCode === null) {
 			if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(server.pid), '/T', '/F']);

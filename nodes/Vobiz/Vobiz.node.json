@@ -13,7 +13,10 @@
 		"cdr",
 		"call record",
 		"recording",
-		"whatsapp"
+		"whatsapp",
+		"sub-account",
+		"subaccount",
+		"kyc"
 	],
 	"resources": {
 		"credentialDocumentation": [
