@@ -8,7 +8,13 @@ import type {
 } from 'n8n-workflow';
 import { jsonParse, NodeOperationError } from 'n8n-workflow';
 
-import { CALL_ANSWERED_PATH, EVENT_QUERY_PARAMETER, MESSAGE_QUERY_PARAMETER } from '../shared/callScript';
+import {
+	CALL_ANSWERED_PATH,
+	CONNECT_QUERY_PARAMETER,
+	EVENT_QUERY_PARAMETER,
+	MESSAGE_QUERY_PARAMETER,
+	parsePhoneList,
+} from '../shared/callScript';
 import { dateDaysAgo, dateRange, simplifyCallRecord } from '../shared/callRecords';
 import { downloadRecording } from '../shared/recordings';
 import { vobizApiRequest, vobizApiRequestAllItems } from '../shared/transport';
@@ -61,20 +67,51 @@ export function isCallAnsweredTriggerUrl(address: string): boolean {
 function hangupUrlFor(answerUrl: string): string {
 	const url = new URL(answerUrl);
 	url.searchParams.delete(MESSAGE_QUERY_PARAMETER);
+	url.searchParams.delete(CONNECT_QUERY_PARAMETER);
 	url.searchParams.set(EVENT_QUERY_PARAMETER, 'hangup');
 	return url.toString();
+}
+
+/**
+ * The numbers to connect the answered call to, checked before any call is placed:
+ * each must be a phone number with its country code, and the Answer URL a Call
+ * Answered Trigger, which is what connects the call.
+ */
+function connectNumbers(this: IExecuteFunctions, raw: string, answerUrl: string, i: number): string[] {
+	if (!raw.trim()) return [];
+	const { numbers, invalid } = parsePhoneList(raw);
+	if (invalid.length) {
+		throw new NodeOperationError(this.getNode(), `"${invalid[0]}" in Connect To is not a phone number with its country code`, {
+			itemIndex: i,
+			description: 'Write it like +919876543210. Separate several numbers with commas.',
+		});
+	}
+	if (!isCallAnsweredTriggerUrl(answerUrl)) {
+		throw new NodeOperationError(this.getNode(), 'Connect To needs a Vobiz Call Answered Trigger as the Answer URL', {
+			itemIndex: i,
+			description:
+				'The trigger is what connects the two people. Paste the Production URL of a Vobiz Call Answered Trigger into Answer URL.',
+		});
+	}
+	return numbers;
 }
 
 export async function makeCall(this: IExecuteFunctions, i: number): Promise<INodeExecutionData> {
 	const from = cleanPhoneNumber(String(this.getNodeParameter('from', i, '', { extractValue: true })));
 	const to = cleanPhoneNumber(this.getNodeParameter('to', i) as string);
 	const message = (this.getNodeParameter('message', i, '') as string).trim();
-	const answerUrl = answerUrlWithMessage.call(
+	let answerUrl = answerUrlWithMessage.call(
 		this,
 		(this.getNodeParameter('answerUrl', i) as string).trim(),
 		message,
 		i,
 	);
+	const connectTo = connectNumbers.call(this, String(this.getNodeParameter('connectTo', i, '') ?? ''), answerUrl, i);
+	if (connectTo.length) {
+		const url = new URL(answerUrl);
+		url.searchParams.set(CONNECT_QUERY_PARAMETER, connectTo.join(','));
+		answerUrl = url.toString();
+	}
 	const options = this.getNodeParameter('options', i, {}) as IDataObject;
 
 	if (!from) {
@@ -109,7 +146,7 @@ export async function makeCall(this: IExecuteFunctions, i: number): Promise<INod
 
 	const response = await vobizApiRequest.call(this, 'POST', '/Call/', { body, itemIndex: i });
 	return {
-		json: { ...response, call_uuid: response.request_uuid, from, to },
+		json: { ...response, call_uuid: response.request_uuid, from, to, ...(connectTo.length ? { connect_to: connectTo } : {}) },
 		pairedItem: { item: i },
 	};
 }

@@ -12,6 +12,23 @@ const SCHEMES = [
 
 export type SignatureCheck = 'valid' | 'invalid' | 'unsigned';
 
+/**
+ * Whether `signature` is the HMAC-SHA256 of the raw body under `secret`, as on
+ * WhatsApp events (X-Webhook-Signature, our own secret) and sub-account KYC
+ * events (X-Vobiz-Signature, the main account's Auth Token). Vobiz documents
+ * plain hex, or hex after "sha256="; a base64 digest is accepted too.
+ */
+export function signatureMatches(rawBody: Buffer, secret: string, signature: string): boolean {
+	const digest = createHmac('sha256', secret).update(rawBody).digest();
+	const given = signature.trim().replace(/^sha256=/i, '');
+	const candidates = [digest.toString('hex'), digest.toString('base64')];
+	const received = Buffer.from(/^[0-9a-f]+$/i.test(given) ? given.toLowerCase() : given, 'utf8');
+	return candidates.some((expected) => {
+		const wanted = Buffer.from(expected, 'utf8');
+		return wanted.length === received.length && timingSafeEqual(wanted, received);
+	});
+}
+
 function header(headers: Headers, name: string): string {
 	const value = headers[name] ?? headers[Object.keys(headers).find((key) => key.toLowerCase() === name) ?? ''];
 	return String(Array.isArray(value) ? value[0] : (value ?? '')).trim();

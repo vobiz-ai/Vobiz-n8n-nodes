@@ -1,0 +1,145 @@
+{
+  "name": "Vobiz test 10 - Call menu",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000037",
+      "name": "Vobiz Call Answered Trigger",
+      "type": "CUSTOM.vobizCallAnsweredTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "a10c2d3e-4f50-4617-8293-a4b5c6d7e8f9",
+      "parameters": {
+        "events": [
+          "keyPressed",
+          "forwardFinished",
+          "voicemailRecorded",
+          "callEnded"
+        ],
+        "numbers": [],
+        "message": "Welcome to the n8n test menu. Press 1 to talk to an agent. Press 2 to hear our opening hours. Press 3 to leave a message.",
+        "voice": "WOMAN",
+        "language": "en-GB",
+        "then": "menu",
+        "menuChoices": {
+          "choice": [
+            {
+              "key": "1",
+              "action": "forward",
+              "reply": "Connecting you to an agent.",
+              "forwardTo": ""
+            },
+            {
+              "key": "2",
+              "action": "say",
+              "reply": "We are open from 9 in the morning to 6 in the evening, Monday to Friday. Goodbye."
+            },
+            {
+              "key": "3",
+              "action": "voicemail",
+              "reply": "Please leave a message after the beep, and press hash when you are done."
+            }
+          ]
+        },
+        "ifNoAnswer": "voicemail",
+        "forwardOptions": {
+          "ringSeconds": 20
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000038",
+      "name": "Only Voicemails",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "6a1d3c2b-9e4f-4d70-8b8c-3f2e1d0c9b8a",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "call.voicemail_recorded",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000039",
+      "name": "Download Voicemail",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "resource": "recording",
+        "operation": "download",
+        "recordingId": "={{ $json.recording_id }}",
+        "binaryPropertyName": "data"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000040",
+      "name": "Note 40",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -440
+      ],
+      "parameters": {
+        "content": "## Test 10: call menu, forwarding and voicemail\n1. **Unpublish test 1 first**: both use your new numbers (the ones marked \"not linked\").\n2. In **Menu Choices**, key 1, put a second phone of yours in **Forward To** (the agent).\n3. Pick your credential in the trigger and in **Download Voicemail**, then **Publish**.\n4. Call your n8n number and try 2 (hours), then 3 (voicemail), then 1 (agent; let it ring out once to hear the voicemail fallback).\n5. **Executions** shows a run for each key, the forward result, each voicemail (with the audio under **Download Voicemail**), and each call's end.",
+        "width": 600,
+        "height": 400
+      }
+    }
+  ],
+  "connections": {
+    "Vobiz Call Answered Trigger": {
+      "main": [
+        [
+          {
+            "node": "Only Voicemails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only Voicemails": {
+      "main": [
+        [
+          {
+            "node": "Download Voicemail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -9,6 +9,7 @@ import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workf
 import { callFields, callOperations } from './descriptions/CallDescription';
 import { callRecordFields, callRecordOperations } from './descriptions/CallRecordDescription';
 import { recordingFields, recordingOperations } from './descriptions/RecordingDescription';
+import { subAccountFields, subAccountOperations } from './descriptions/SubAccountDescription';
 import {
 	whatsAppMessageFields,
 	whatsAppMessageOperations,
@@ -25,7 +26,32 @@ import {
 	sendWhatsAppMessage,
 	WhatsAppLookups,
 } from './operations';
+import {
+	assignNumber,
+	createSubAccount,
+	deleteSubAccount,
+	getKycStatus,
+	getManySubAccounts,
+	getSubAccount,
+	startKyc,
+	unassignNumber,
+	updateSubAccount,
+} from './subAccounts';
+import { searchSubAccounts } from '../shared/subAccounts';
 import { searchWhatsAppChannels, searchWhatsAppTemplates } from '../shared/whatsapp';
+
+type SubAccountOperation = (this: IExecuteFunctions, i: number) => Promise<INodeExecutionData>;
+
+const SUB_ACCOUNT_OPERATIONS = new Map<string, SubAccountOperation>([
+	['assignNumber', assignNumber],
+	['create', createSubAccount],
+	['delete', deleteSubAccount],
+	['get', getSubAccount],
+	['getKycStatus', getKycStatus],
+	['startKyc', startKyc],
+	['unassignNumber', unassignNumber],
+	['update', updateSubAccount],
+]);
 
 export class Vobiz implements INodeType {
 	description: INodeTypeDescription = {
@@ -35,7 +61,8 @@ export class Vobiz implements INodeType {
 		group: ['output'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Make calls, get call records and recordings, and send WhatsApp messages with Vobiz',
+		description:
+			'Make calls, get call records and recordings, send WhatsApp messages, and manage sub-accounts with Vobiz',
 		defaults: {
 			name: 'Vobiz',
 		},
@@ -58,6 +85,7 @@ export class Vobiz implements INodeType {
 					{ name: 'Call', value: 'call' },
 					{ name: 'Call Record', value: 'callRecord' },
 					{ name: 'Recording', value: 'recording' },
+					{ name: 'Sub-Account', value: 'subAccount' },
 					{ name: 'WhatsApp Message', value: 'whatsAppMessage' },
 				],
 				default: 'call',
@@ -68,6 +96,8 @@ export class Vobiz implements INodeType {
 			...callRecordFields,
 			...recordingOperations,
 			...recordingFields,
+			...subAccountOperations,
+			...subAccountFields,
 			...whatsAppMessageOperations,
 			...whatsAppMessageFields,
 		],
@@ -76,6 +106,7 @@ export class Vobiz implements INodeType {
 	methods = {
 		listSearch: {
 			searchNumbers,
+			searchSubAccounts,
 			searchWhatsAppChannels,
 			searchWhatsAppTemplates,
 		},
@@ -107,6 +138,11 @@ export class Vobiz implements INodeType {
 					returnData.push(await downloadRecordingItem.call(this, i));
 				} else if (resource === 'whatsAppMessage' && operation === 'send') {
 					returnData.push(await sendWhatsAppMessage.call(this, i, whatsApp));
+				} else if (resource === 'subAccount' && operation === 'getAll') {
+					returnData.push(...(await getManySubAccounts.call(this, i)));
+				} else if (resource === 'subAccount' && SUB_ACCOUNT_OPERATIONS.has(operation)) {
+					const subAccountOperation = SUB_ACCOUNT_OPERATIONS.get(operation) as SubAccountOperation;
+					returnData.push(await subAccountOperation.call(this, i));
 				} else {
 					throw new NodeOperationError(
 						this.getNode(),

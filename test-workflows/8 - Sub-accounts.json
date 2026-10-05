@@ -1,0 +1,188 @@
+{
+  "name": "Vobiz test 8 - Sub-accounts",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000023",
+      "name": "Click to test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000024",
+      "name": "Create Test Sub-Account",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "resource": "subAccount",
+        "operation": "create",
+        "name": "n8n test sub-account",
+        "kycMode": "personal_use",
+        "additionalFields": {
+          "description": "Made by Vobiz n8n test 8, deleted at the end of the test"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000025",
+      "name": "Get It",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "resource": "subAccount",
+        "operation": "get",
+        "subAccount": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.auth_id }}"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000026",
+      "name": "Change It",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        780,
+        0
+      ],
+      "parameters": {
+        "resource": "subAccount",
+        "operation": "update",
+        "subAccount": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.auth_id }}"
+        },
+        "updateFields": {
+          "description": "Changed by Vobiz n8n test 8",
+          "canReadCallRecords": false
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000027",
+      "name": "Delete It",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        0
+      ],
+      "parameters": {
+        "resource": "subAccount",
+        "operation": "delete",
+        "subAccount": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Create Test Sub-Account').item.json.auth_id }}"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000028",
+      "name": "List Sub-Accounts",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        0
+      ],
+      "parameters": {
+        "resource": "subAccount",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 10,
+        "filters": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000029",
+      "name": "Note 29",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -360
+      ],
+      "parameters": {
+        "content": "## Test 8: sub-accounts\n1. Pick your **main account** credential (its Auth ID starts with MA_) in every Vobiz node.\n2. Click **Execute workflow**.\n\nIt creates a sub-account named *n8n test sub-account*, reads it, changes it, deletes it, then lists your sub-accounts. The new sub-account's Auth Token shows once, in **Create Test Sub-Account**.",
+        "width": 560,
+        "height": 320
+      }
+    }
+  ],
+  "connections": {
+    "Click to test": {
+      "main": [
+        [
+          {
+            "node": "Create Test Sub-Account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Test Sub-Account": {
+      "main": [
+        [
+          {
+            "node": "Get It",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get It": {
+      "main": [
+        [
+          {
+            "node": "Change It",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Change It": {
+      "main": [
+        [
+          {
+            "node": "Delete It",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete It": {
+      "main": [
+        [
+          {
+            "node": "List Sub-Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

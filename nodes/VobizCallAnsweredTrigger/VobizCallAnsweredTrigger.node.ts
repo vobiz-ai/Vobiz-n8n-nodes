@@ -10,12 +10,24 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
+import type { SpeakScript } from '../shared/callScript';
 import {
 	buildSpeakXml,
+	CONNECT_QUERY_PARAMETER,
 	EVENT_QUERY_PARAMETER,
+	forwardLines,
+	greetingLines,
+	MENU_ATTEMPT_QUERY_PARAMETER,
+	menuXml,
 	MESSAGE_QUERY_PARAMETER,
 	normalizeCustomXml,
+	parsePhoneList,
 	SPEAK_LANGUAGES,
+	speakLine,
+	STEP_QUERY_PARAMETER,
+	toE164,
+	voicemailLines,
+	wrapResponse,
 } from '../shared/callScript';
 import {
 	applicationIdOf,
@@ -33,6 +45,330 @@ import { assertPublicWebhookUrl, safeName } from '../shared/webhooks';
 
 const CALL_ANSWERED = 'callAnswered';
 const CALL_ENDED = 'callEnded';
+const KEY_PRESSED = 'keyPressed';
+const FORWARD_FINISHED = 'forwardFinished';
+const VOICEMAIL_RECORDED = 'voicemailRecorded';
+
+/** A wrong key gets the menu once more; after that the call ends. */
+const MENU_ATTEMPTS = 2;
+
+type ThenAction = 'hangup' | 'forward' | 'menu' | 'voicemail';
+
+interface MenuChoice {
+	key: string;
+	action: 'say' | 'forward' | 'voicemail';
+	reply: string;
+	numbers: string[];
+}
+
+/** What happens after the message, read from the node's settings. */
+interface CallPlan {
+	then: ThenAction;
+	forwardTo: string[];
+	ringSeconds: number;
+	callerId: string;
+	ifNoAnswer: 'message' | 'voicemail';
+	noAnswerMessage: string;
+	noAnswerVoicemailPrompt: string;
+	choices: MenuChoice[];
+	waitSeconds: number;
+	noKeyMessage: string;
+	wrongKeyMessage: string;
+	voicemailMaxSeconds: number;
+	voicemailSilenceSeconds: number;
+	voicemailThanks: string;
+}
+
+const DEFAULT_NO_ANSWER_MESSAGE = 'Sorry, nobody is available to take your call right now. Goodbye.';
+const DEFAULT_NO_ANSWER_VOICEMAIL_PROMPT =
+	'Sorry, nobody is available right now. Please leave a message after the beep, and press hash when you are done.';
+const DEFAULT_NO_KEY_MESSAGE = 'We did not get your choice. Goodbye.';
+const DEFAULT_WRONG_KEY_MESSAGE = 'Sorry, that is not one of the choices.';
+const DEFAULT_VOICEMAIL_THANKS = 'Thank you. Your message has been recorded. Goodbye.';
+
+/** Phone numbers from "Forward To": separated by commas, semicolons or new lines. */
+function forwardNumbers(raw: unknown, field: string, problems: string[]): string[] {
+	const { numbers, invalid } = parsePhoneList(raw);
+	if (numbers.length === 0 && invalid.length === 0) problems.push(`Enter a phone number in ${field}`);
+	for (const part of invalid) {
+		problems.push(`"${part}" in ${field} is not a phone number with its country code, such as +919876543210`);
+	}
+	return numbers;
+}
+
+/** The node's call settings, and anything wrong with them. */
+function readCallPlan(context: IHookFunctions | IWebhookFunctions): { plan: CallPlan; problems: string[] } {
+	const problems: string[] = [];
+	const then = context.getNodeParameter('then', 'hangup') as ThenAction;
+	const forwardOptions = context.getNodeParameter('forwardOptions', {}) as IDataObject;
+	const menuOptions = context.getNodeParameter('menuOptions', {}) as IDataObject;
+	const voicemailOptions = context.getNodeParameter('voicemailOptions', {}) as IDataObject;
+	const text = (value: unknown, fallback: string) => {
+		const trimmed = String(value ?? '').trim();
+		return trimmed || fallback;
+	};
+
+	const callerIdRaw = String(forwardOptions.callerId ?? '').trim();
+	const callerId = callerIdRaw ? toE164(callerIdRaw) : '';
+	if (callerIdRaw && !callerId) {
+		problems.push(`"${callerIdRaw}" in Caller ID is not a phone number with its country code`);
+	}
+
+	const plan: CallPlan = {
+		then,
+		forwardTo: then === 'forward' ? forwardNumbers(context.getNodeParameter('forwardTo', ''), 'Forward To', problems) : [],
+		ringSeconds: Number(forwardOptions.ringSeconds ?? 30) || 30,
+		callerId: callerId ?? '',
+		ifNoAnswer: context.getNodeParameter('ifNoAnswer', 'message') === 'voicemail' ? 'voicemail' : 'message',
+		noAnswerMessage: text(context.getNodeParameter('noAnswerMessage', ''), DEFAULT_NO_ANSWER_MESSAGE),
+		noAnswerVoicemailPrompt: text(context.getNodeParameter('noAnswerVoicemailPrompt', ''), DEFAULT_NO_ANSWER_VOICEMAIL_PROMPT),
+		choices: [],
+		waitSeconds: Number(menuOptions.waitSeconds ?? 10) || 10,
+		noKeyMessage: text(menuOptions.noKeyMessage, DEFAULT_NO_KEY_MESSAGE),
+		wrongKeyMessage: text(menuOptions.wrongKeyMessage, DEFAULT_WRONG_KEY_MESSAGE),
+		voicemailMaxSeconds: Number(voicemailOptions.maxSeconds ?? 120) || 120,
+		voicemailSilenceSeconds: Number(voicemailOptions.silenceSeconds ?? 10) || 10,
+		voicemailThanks: text(voicemailOptions.thanks, DEFAULT_VOICEMAIL_THANKS),
+	};
+
+	if (then === 'menu') {
+		const rows = ((context.getNodeParameter('menuChoices', {}) as IDataObject).choice ?? []) as IDataObject[];
+		const seen = new Set<string>();
+		for (const row of rows) {
+			const key = String(row.key ?? '').trim();
+			const action = (['say', 'forward', 'voicemail'].includes(String(row.action)) ? row.action : 'say') as MenuChoice['action'];
+			if (!key) continue;
+			if (seen.has(key)) problems.push(`Key ${key} is in Menu Choices twice`);
+			seen.add(key);
+			plan.choices.push({
+				key,
+				action,
+				reply: String(row.reply ?? '').trim(),
+				numbers: action === 'forward' ? forwardNumbers(row.forwardTo, `Forward To for key ${key}`, problems) : [],
+			});
+		}
+		if (plan.choices.length === 0) problems.push('Add at least one choice in Menu Choices');
+	}
+	return { plan, problems };
+}
+
+/** A web address for Vobiz's next request about this call: the trigger's own, marked with the step. */
+function stepUrl(context: IWebhookFunctions, step: string, extra: Record<string, string> = {}): string {
+	const url = new URL(String(context.getNodeWebhookUrl('default')));
+	url.searchParams.set(STEP_QUERY_PARAMETER, step);
+	for (const [key, value] of Object.entries(extra)) url.searchParams.set(key, value);
+	return url.toString();
+}
+
+/** This call's Vobiz number: what an outgoing call came from, or what an incoming call came to. */
+function ownNumberOf(body: IDataObject): string {
+	const direction = String(body.Direction ?? '').toLowerCase();
+	return toE164(direction === 'outbound' ? body.From : body.To) ?? '';
+}
+
+function callFields(body: IDataObject): IDataObject {
+	return {
+		call_uuid: body.CallUUID ?? body.RequestUUID ?? null,
+		from: body.From ?? null,
+		to: body.To ?? null,
+		direction: body.Direction ?? null,
+	};
+}
+
+/** The message and its options; a Message passed by Make a Call (on the address) wins. */
+function greetingFor(context: IWebhookFunctions, query: IDataObject): { greeting: SpeakScript; passedMessage: string } {
+	const passed = query[MESSAGE_QUERY_PARAMETER];
+	const passedMessage = typeof passed === 'string' ? passed.trim() : '';
+	const options = context.getNodeParameter('options', {}) as IDataObject;
+	return {
+		passedMessage,
+		greeting: {
+			message: passedMessage || (context.getNodeParameter('message', '') as string),
+			voice: context.getNodeParameter('voice', 'WOMAN') as string,
+			language: context.getNodeParameter('language', 'en-US') as string,
+			repeat: options.repeat as number | undefined,
+			pauseSeconds: options.pauseSeconds === undefined ? 1 : Number(options.pauseSeconds),
+			playUrl: options.playUrl as string | undefined,
+		},
+	};
+}
+
+/**
+ * The numbers Make a Call's Connect To asked for (on the answer address). Make a
+ * Call checks them before placing the call; anything else here is ignored.
+ */
+function connectNumbersOf(context: IWebhookFunctions, query: IDataObject): string[] {
+	const raw = query[CONNECT_QUERY_PARAMETER];
+	if (typeof raw !== 'string' || !raw.trim()) return [];
+	const { numbers, invalid } = parsePhoneList(raw);
+	if (invalid.length) {
+		context.logger.warn(
+			`Vobiz Call Answered Trigger: ignored Connect To, because "${invalid[0]}" is not a phone number. The trigger's own script was used.`,
+		);
+		return [];
+	}
+	return numbers;
+}
+
+function menuStepUrl(context: IWebhookFunctions, attempt: number, passedMessage: string): string {
+	return stepUrl(context, 'menu', {
+		[MENU_ATTEMPT_QUERY_PARAMETER]: String(attempt),
+		...(passedMessage ? { [MESSAGE_QUERY_PARAMETER]: passedMessage } : {}),
+	});
+}
+
+function voicemailFor(context: IWebhookFunctions, plan: CallPlan) {
+	return {
+		actionUrl: stepUrl(context, 'record'),
+		callbackUrl: stepUrl(context, 'recorded'),
+		maxSeconds: plan.voicemailMaxSeconds,
+		silenceSeconds: plan.voicemailSilenceSeconds,
+		thanks: plan.voicemailThanks,
+	};
+}
+
+function forwardFor(context: IWebhookFunctions, plan: CallPlan, numbers: string[], body: IDataObject) {
+	return {
+		numbers,
+		callerId: plan.callerId || ownNumberOf(body),
+		ringSeconds: plan.ringSeconds,
+		actionUrl: stepUrl(context, 'dial'),
+	};
+}
+
+/** The XML for the answered call: the message, then the chosen action. */
+function answerXml(
+	context: IWebhookFunctions,
+	plan: CallPlan,
+	greeting: SpeakScript,
+	passedMessage: string,
+	body: IDataObject,
+): string {
+	if (plan.then === 'forward') {
+		return wrapResponse([...greetingLines(greeting), ...forwardLines(forwardFor(context, plan, plan.forwardTo, body))]);
+	}
+	if (plan.then === 'menu') {
+		return menuXml(greeting, {
+			actionUrl: menuStepUrl(context, 1, passedMessage),
+			waitSeconds: plan.waitSeconds,
+			noKeyMessage: plan.noKeyMessage,
+		});
+	}
+	if (plan.then === 'voicemail') {
+		return wrapResponse([...greetingLines(greeting), ...voicemailLines(voicemailFor(context, plan), greeting)]);
+	}
+	return buildSpeakXml(greeting);
+}
+
+/**
+ * Vobiz's follow-up requests about a call, marked with vobizStep on the address:
+ * menu (the key pressed), dial (the forwarding result), record (the start of a
+ * recording) and recorded (the finished recording).
+ */
+function answerStep(
+	context: IWebhookFunctions,
+	step: string,
+	body: IDataObject,
+	query: IDataObject,
+	events: string[],
+): IWebhookResponseData {
+	const res = context.getResponseObject();
+	const sendXml = (lines: string[]) =>
+		res.status(200).set('Content-Type', 'text/xml; charset=utf-8').send(wrapResponse(lines));
+	const start = (enabled: boolean, json: IDataObject): IWebhookResponseData =>
+		enabled ? { noWebhookResponse: true, workflowData: [[{ json }]] } : { noWebhookResponse: true };
+	const { plan, problems } = readCallPlan(context);
+	if (problems.length) context.logger.warn(`Vobiz Call Answered Trigger: ${problems[0]}`);
+	const { greeting, passedMessage } = greetingFor(context, query);
+
+	if (step === 'menu') {
+		const key = String(body.Digits ?? '').trim();
+		const choice = plan.choices.find((candidate) => candidate.key === key);
+		const attempt = Number(query[MENU_ATTEMPT_QUERY_PARAMETER]) || 1;
+		if (choice) {
+			const reply = speakLine(choice.reply, greeting);
+			if (choice.action === 'forward' && choice.numbers.length) {
+				sendXml([...reply, ...forwardLines(forwardFor(context, plan, choice.numbers, body))]);
+			} else if (choice.action === 'voicemail') {
+				sendXml([...reply, ...voicemailLines(voicemailFor(context, plan), greeting)]);
+			} else {
+				sendXml([...reply, '  <Hangup/>']);
+			}
+		} else if (attempt < MENU_ATTEMPTS) {
+			const again = { ...greeting, pauseSeconds: 0 };
+			res
+				.status(200)
+				.set('Content-Type', 'text/xml; charset=utf-8')
+				.send(
+					menuXml(
+						again,
+						{ actionUrl: menuStepUrl(context, attempt + 1, passedMessage), waitSeconds: plan.waitSeconds, noKeyMessage: plan.noKeyMessage },
+						speakLine(plan.wrongKeyMessage, greeting),
+					),
+				);
+		} else {
+			sendXml([...speakLine(plan.wrongKeyMessage, greeting), ...speakLine(plan.noKeyMessage, greeting), '  <Hangup/>']);
+		}
+		return start(events.includes(KEY_PRESSED), {
+			event: 'call.key_pressed',
+			...callFields(body),
+			key: key || null,
+			valid: Boolean(choice),
+			action: choice ? choice.action : null,
+			attempt,
+			pressed_at: new Date().toISOString(),
+			vobiz: body,
+		});
+	}
+
+	if (step === 'dial') {
+		const dialStatus = String(body.DialStatus ?? '').toLowerCase();
+		const answered = dialStatus === 'completed';
+		if (answered) sendXml(['  <Hangup/>']);
+		else if (plan.ifNoAnswer === 'voicemail') {
+			sendXml([...speakLine(plan.noAnswerVoicemailPrompt, greeting), ...voicemailLines(voicemailFor(context, plan), greeting)]);
+		} else {
+			sendXml([...speakLine(plan.noAnswerMessage, greeting), '  <Hangup/>']);
+		}
+		return start(events.includes(FORWARD_FINISHED), {
+			event: 'call.forward_finished',
+			...callFields(body),
+			answered,
+			dial_status: body.DialStatus ?? null,
+			hangup_cause: body.DialHangupCause ?? null,
+			forwarded_call_uuid: body.DialBLegUUID || null,
+			finished_at: new Date().toISOString(),
+			vobiz: body,
+		});
+	}
+
+	if (step === 'record') {
+		// Vobiz's first recording event (redirect="false"): it must get an empty <Response>.
+		sendXml([]);
+		return { noWebhookResponse: true };
+	}
+
+	if (step === 'recorded') {
+		res.status(200).end();
+		const duration = Number(body.RecordingDuration);
+		const durationMs = Number(body.RecordingDurationMs);
+		return start(events.includes(VOICEMAIL_RECORDED), {
+			event: 'call.voicemail_recorded',
+			...callFields(body),
+			recording_id: body.RecordingID ?? null,
+			recording_url: body.RecordUrl ?? body.RecordFile ?? null,
+			duration: Number.isFinite(duration) && body.RecordingDuration !== '' ? duration : null,
+			duration_ms: Number.isFinite(durationMs) && body.RecordingDurationMs !== '' ? durationMs : null,
+			end_reason: body.RecordingEndReason ?? null,
+			recorded_at: new Date().toISOString(),
+			vobiz: body,
+		});
+	}
+
+	context.logger.info(`Vobiz Call Answered Trigger: ignored a request for the unknown step "${step}"`);
+	res.status(200).end();
+	return { noWebhookResponse: true };
+}
 
 /** How Vobiz reports the end of a call: Event=Hangup, or a finished status. */
 const FINISHED_STATUSES = new Set(['completed', 'busy', 'failed', 'no-answer', 'canceled', 'cancel', 'timeout']);
@@ -96,7 +432,7 @@ export class VobizCallAnsweredTrigger implements INodeType {
 		subtitle:
 			'={{$parameter["events"].includes("callEnded") ? ($parameter["events"].includes("callAnswered") ? "Call answered, call ended" : "Call ended") : "Call answered"}}',
 		description:
-			'Answers calls with your message, and starts the workflow the moment a call is answered or ends',
+			'Answers calls with your message, then hangs up, forwards the call, plays a menu or records a voicemail, and starts the workflow as the call goes on',
 		defaults: {
 			name: 'Vobiz Call Answered Trigger',
 		},
@@ -140,6 +476,21 @@ export class VobizCallAnsweredTrigger implements INodeType {
 						value: CALL_ENDED,
 						description: 'The call finishes, answered or not. Reported the moment it ends.',
 					},
+					{
+						name: 'Forward Finished',
+						value: FORWARD_FINISHED,
+						description: 'A forwarded call ends: answered by the number, or not (busy, no answer)',
+					},
+					{
+						name: 'Key Pressed',
+						value: KEY_PRESSED,
+						description: 'The caller pressed a key in the menu. The workflow gets the key.',
+					},
+					{
+						name: 'Voicemail Recorded',
+						value: VOICEMAIL_RECORDED,
+						description: 'The caller left a voicemail. The workflow gets the recording ID and length.',
+					},
 				],
 				default: [CALL_ANSWERED],
 			},
@@ -166,9 +517,8 @@ export class VobizCallAnsweredTrigger implements INodeType {
 				type: 'string',
 				typeOptions: { rows: 3 },
 				default: 'Hello! This is a call from Vobiz. Thank you, goodbye.',
-				required: true,
 				description:
-					'What to say when the call is answered. A Message set on Make a Call replaces this one for that call.',
+					'What to say when the call is answered. Leave empty to say nothing, for example to forward calls without a greeting. A Message set on Make a Call replaces this one for that call.',
 			},
 			{
 				displayName: 'Voice',
@@ -189,6 +539,242 @@ export class VobizCallAnsweredTrigger implements INodeType {
 				options: SPEAK_LANGUAGES,
 				default: 'en-US',
 				description: 'The language and accent the message is read in',
+			},
+			{
+				displayName: 'Then',
+				name: 'then',
+				type: 'options',
+				options: [
+					{
+						name: 'Ask to Press a Key (Menu)',
+						value: 'menu',
+						description:
+							'Say the message as a menu, such as "Press 1 for sales, 2 for support", and act on the key pressed',
+					},
+					{
+						name: 'Forward to a Number',
+						value: 'forward',
+						description: 'Connect the caller to a number, such as an agent’s phone',
+					},
+					{
+						name: 'Hang Up',
+						value: 'hangup',
+						description: 'End the call after the message',
+					},
+					{
+						name: 'Record a Voicemail',
+						value: 'voicemail',
+						description:
+							'Record what the caller says after a beep. Use the message as the prompt, such as: Please leave a message after the beep.',
+					},
+				],
+				default: 'hangup',
+				description: 'What happens after the message',
+			},
+			{
+				displayName:
+					'Menus, forwarding and voicemail need the workflow to be published: Vobiz sends the key, the forwarding result and the recording to the Production URL.',
+				name: 'publishNotice',
+				type: 'notice',
+				default: '',
+				displayOptions: { show: { then: ['menu', 'forward', 'voicemail'] } },
+			},
+			{
+				displayName: 'Forward To',
+				name: 'forwardTo',
+				type: 'string',
+				default: '',
+				required: true,
+				placeholder: 'e.g. +919876543210',
+				description:
+					'The number to connect the caller to, with its country code. Separate several numbers with commas: they all ring, and the first to answer gets the call.',
+				displayOptions: { show: { then: ['forward'] } },
+			},
+			{
+				displayName: 'Menu Choices',
+				name: 'menuChoices',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Choice',
+				default: {},
+				description: 'What each key does. Any other key gets the menu once more.',
+				displayOptions: { show: { then: ['menu'] } },
+				options: [
+					{
+						displayName: 'Choice',
+						name: 'choice',
+						values: [
+							{
+								displayName: 'Key',
+								name: 'key',
+								type: 'options',
+								options: [
+									{ name: '0', value: '0' },
+									{ name: '1', value: '1' },
+									{ name: '2', value: '2' },
+									{ name: '3', value: '3' },
+									{ name: '4', value: '4' },
+									{ name: '5', value: '5' },
+									{ name: '6', value: '6' },
+									{ name: '7', value: '7' },
+									{ name: '8', value: '8' },
+									{ name: '9', value: '9' },
+									{ name: 'Star', value: '*' },
+								],
+								default: '1',
+							},
+							{
+								displayName: 'Action',
+								name: 'action',
+								type: 'options',
+								options: [
+									{ name: 'Forward to a Number', value: 'forward' },
+									{ name: 'Record a Voicemail', value: 'voicemail' },
+									{ name: 'Say a Message and Hang Up', value: 'say' },
+								],
+								default: 'say',
+							},
+							{
+								displayName: 'Say',
+								name: 'reply',
+								type: 'string',
+								default: '',
+								placeholder: 'e.g. Connecting you to sales.',
+								description:
+									'What to say after the key. For a voicemail, this is the prompt before the beep. Leave empty to say nothing.',
+							},
+							{
+								displayName: 'Forward To',
+								name: 'forwardTo',
+								type: 'string',
+								default: '',
+								placeholder: 'e.g. +919876543210',
+								description: 'The number to connect the caller to, with its country code. Separate several with commas.',
+								displayOptions: { show: { action: ['forward'] } },
+							},
+						],
+					},
+				],
+			},
+			{
+				displayName: 'If Nobody Answers the Forwarded Call',
+				name: 'ifNoAnswer',
+				type: 'options',
+				options: [
+					{ name: 'Record a Voicemail', value: 'voicemail' },
+					{ name: 'Say a Message and Hang Up', value: 'message' },
+				],
+				default: 'message',
+				description: 'What the caller gets when the number is busy, does not answer, or cannot be reached',
+				displayOptions: { show: { then: ['forward', 'menu'] } },
+			},
+			{
+				displayName: 'No Answer Message',
+				name: 'noAnswerMessage',
+				type: 'string',
+				default: DEFAULT_NO_ANSWER_MESSAGE,
+				description: 'What to say when the forwarded call is not answered',
+				displayOptions: { show: { then: ['forward', 'menu'], ifNoAnswer: ['message'] } },
+			},
+			{
+				displayName: 'Voicemail Prompt',
+				name: 'noAnswerVoicemailPrompt',
+				type: 'string',
+				default: DEFAULT_NO_ANSWER_VOICEMAIL_PROMPT,
+				description: 'What to say before the beep when the forwarded call is not answered',
+				displayOptions: { show: { then: ['forward', 'menu'], ifNoAnswer: ['voicemail'] } },
+			},
+			{
+				displayName: 'Forward Options',
+				name: 'forwardOptions',
+				type: 'collection',
+				placeholder: 'Add option',
+				default: {},
+				displayOptions: { show: { then: ['forward', 'menu'] } },
+				options: [
+					{
+						displayName: 'Caller ID',
+						name: 'callerId',
+						type: 'string',
+						default: '',
+						placeholder: 'e.g. +918012345678',
+						description:
+							'The number the forwarded-to phone sees. It must be one of your Vobiz numbers. Leave empty to use the Vobiz number of this call.',
+					},
+					{
+						displayName: 'Ring For (Seconds)',
+						name: 'ringSeconds',
+						type: 'number',
+						typeOptions: { minValue: 5, maxValue: 120 },
+						default: 30,
+						description: 'How long the number rings before it counts as not answered',
+					},
+				],
+			},
+			{
+				displayName: 'Menu Options',
+				name: 'menuOptions',
+				type: 'collection',
+				placeholder: 'Add option',
+				default: {},
+				displayOptions: { show: { then: ['menu'] } },
+				options: [
+					{
+						displayName: 'No Key Message',
+						name: 'noKeyMessage',
+						type: 'string',
+						default: DEFAULT_NO_KEY_MESSAGE,
+						description: 'What to say before hanging up when no key is pressed',
+					},
+					{
+						displayName: 'Wait for a Key (Seconds)',
+						name: 'waitSeconds',
+						type: 'number',
+						typeOptions: { minValue: 5, maxValue: 60 },
+						default: 10,
+						description: 'How long to wait for a key after the message ends',
+					},
+					{
+						displayName: 'Wrong Key Message',
+						name: 'wrongKeyMessage',
+						type: 'string',
+						default: DEFAULT_WRONG_KEY_MESSAGE,
+						description: 'What to say before asking again when the key is not one of the choices',
+					},
+				],
+			},
+			{
+				displayName: 'Voicemail Options',
+				name: 'voicemailOptions',
+				type: 'collection',
+				placeholder: 'Add option',
+				default: {},
+				displayOptions: { show: { then: ['voicemail', 'forward', 'menu'] } },
+				options: [
+					{
+						displayName: 'Maximum Length (Seconds)',
+						name: 'maxSeconds',
+						type: 'number',
+						typeOptions: { minValue: 5, maxValue: 600 },
+						default: 120,
+						description: 'The longest a voicemail can be',
+					},
+					{
+						displayName: 'Stop After Silence (Seconds)',
+						name: 'silenceSeconds',
+						type: 'number',
+						typeOptions: { minValue: 2, maxValue: 60 },
+						default: 10,
+						description: 'The recording ends when the caller is silent this long. The caller can also press # to finish.',
+					},
+					{
+						displayName: 'Thank You Message',
+						name: 'thanks',
+						type: 'string',
+						default: DEFAULT_VOICEMAIL_THANKS,
+						description: 'What to say after the recording, before hanging up',
+					},
+				],
 			},
 			{
 				displayName: 'Options',
@@ -311,6 +897,18 @@ export class VobizCallAnsweredTrigger implements INodeType {
 
 			async create(this: IHookFunctions): Promise<boolean> {
 				const webhookUrl = assertPublicWebhookUrl(this, this.getNodeWebhookUrl('default'));
+
+				// A wrong forward number or an empty menu is reported now, not by a caller.
+				const customXml = String((this.getNodeParameter('options', {}) as IDataObject).customXml ?? '').trim();
+				const { problems } = readCallPlan(this);
+				if (!customXml && problems.length) {
+					throw new NodeOperationError(this.getNode(), problems[0], {
+						description:
+							problems.length > 1
+								? `Also: ${problems.slice(1).join('; ')}.`
+								: 'Fix it in the trigger’s settings, then publish again.',
+					});
+				}
 				const staticData = this.getWorkflowStaticData('node');
 				const isTest = isTestRegistration(this, webhookUrl);
 				const appName = applicationName(this, isTest);
@@ -474,6 +1072,10 @@ export class VobizCallAnsweredTrigger implements INodeType {
 			return { noWebhookResponse: true };
 		}
 
+		// Follow-ups about a call come first: a recording can finish after the caller hung up.
+		const step = String(query[STEP_QUERY_PARAMETER] ?? '');
+		if (step) return answerStep(this, step, body, query, events);
+
 		const event = String(body.Event ?? '').toLowerCase();
 		const status = String(body.CallStatus ?? '').toLowerCase();
 		const ended = event === 'hangup' || FINISHED_STATUSES.has(status) || query[EVENT_QUERY_PARAMETER] === 'hangup';
@@ -510,23 +1112,43 @@ export class VobizCallAnsweredTrigger implements INodeType {
 			};
 		}
 
-		const passedMessage = query[MESSAGE_QUERY_PARAMETER];
-		const nodeMessage = this.getNodeParameter('message', '') as string;
-		const message =
-			typeof passedMessage === 'string' && passedMessage.trim() ? passedMessage.trim() : nodeMessage;
+		const { greeting, passedMessage } = greetingFor(this, query);
+		const message = greeting.message;
 		const options = this.getNodeParameter('options', {}) as IDataObject;
 		const customXml = String(options.customXml ?? '').trim();
 
-		const xml = customXml
-			? normalizeCustomXml(customXml)
-			: buildSpeakXml({
-					message,
-					voice: this.getNodeParameter('voice', 'WOMAN') as string,
-					language: this.getNodeParameter('language', 'en-US') as string,
-					repeat: options.repeat as number | undefined,
-					pauseSeconds: options.pauseSeconds === undefined ? 1 : Number(options.pauseSeconds),
-					playUrl: options.playUrl as string | undefined,
-				});
+		let xml: string;
+		let then: ThenAction | 'connect' | null = 'hangup';
+		let spokenMessage: string | null = message;
+		const connectTo = connectNumbersOf(this, query);
+		if (connectTo.length) {
+			// A call between two people, from Make a Call's Connect To: only Make a Call's own
+			// Message is said (none means straight through), then the call is connected.
+			const { plan } = readCallPlan(this);
+			const callGreeting: SpeakScript = {
+				message: passedMessage,
+				voice: greeting.voice,
+				language: greeting.language,
+				repeat: 1,
+				pauseSeconds: passedMessage ? 1 : 0,
+			};
+			xml = wrapResponse([...greetingLines(callGreeting), ...forwardLines(forwardFor(this, plan, connectTo, body))]);
+			then = 'connect';
+			spokenMessage = passedMessage || null;
+		} else if (customXml) {
+			xml = normalizeCustomXml(customXml);
+			then = null;
+			spokenMessage = null;
+		} else {
+			const { plan, problems } = readCallPlan(this);
+			if (problems.length) {
+				// Never leave a caller in silence: say the message and hang up.
+				this.logger.warn(`Vobiz Call Answered Trigger: ${problems[0]}. The call hangs up after the message.`);
+				plan.then = 'hangup';
+			}
+			then = plan.then;
+			xml = answerXml(this, plan, greeting, passedMessage, body);
+		}
 
 		// Answer at once: Vobiz waits only a few seconds for the script.
 		res.status(200).set('Content-Type', 'text/xml; charset=utf-8').send(xml);
@@ -544,7 +1166,9 @@ export class VobizCallAnsweredTrigger implements INodeType {
 							to: body.To ?? null,
 							direction: body.Direction ?? null,
 							call_status: body.CallStatus ?? null,
-							message: customXml ? null : message,
+							message: spokenMessage,
+							then,
+							...(connectTo.length ? { connect_to: connectTo } : {}),
 							answered_at: new Date().toISOString(),
 							vobiz: body,
 						},

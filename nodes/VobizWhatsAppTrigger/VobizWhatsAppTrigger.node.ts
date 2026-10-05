@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { randomBytes } from 'crypto';
 import type {
 	IDataObject,
 	IHookFunctions,
@@ -10,24 +10,12 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 
+import { signatureMatches } from '../shared/signature';
 import { httpStatusOf, vobizApiRequest } from '../shared/transport';
 import { assertPublicWebhookUrl } from '../shared/webhooks';
 import { listWhatsAppChannels, searchWhatsAppChannels } from '../shared/whatsapp';
 
-/**
- * Whether the X-Webhook-Signature header is the HMAC-SHA256 of the raw body under our
- * secret. Vobiz documents plain hex; a "sha256=" prefix or a base64 digest is accepted too.
- */
-export function signatureMatches(rawBody: Buffer, secret: string, signature: string): boolean {
-	const digest = createHmac('sha256', secret).update(rawBody).digest();
-	const given = signature.trim().replace(/^sha256=/i, '');
-	const candidates = [digest.toString('hex'), digest.toString('base64')];
-	const received = Buffer.from(/^[0-9a-f]+$/i.test(given) ? given.toLowerCase() : given, 'utf8');
-	return candidates.some((expected) => {
-		const wanted = Buffer.from(expected, 'utf8');
-		return wanted.length === received.length && timingSafeEqual(wanted, received);
-	});
-}
+export { signatureMatches };
 
 /** Unix seconds (as WhatsApp sends them) to an ISO date, or the value as text. */
 function isoFromUnix(value: unknown): string | null {

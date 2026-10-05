@@ -77,26 +77,69 @@ function recording(n, baseUrl, overrides = {}) {
 function initialNumbers() {
 	const number = (e164, extra = {}) => ({
 		e164,
+		account_id: AUTH_ID,
 		country: 'IN',
 		region: 'Karnataka',
 		capabilities: { voice: true },
 		status: 'active',
 		application_id: null,
 		trunk_group_id: null,
+		last_call_at: null,
 		...extra,
 	});
 	return [
 		number('+918012345678', { application_id: 'app-crm' }),
 		number('+918012345699'),
-		number('+918012345601', { region: 'Gujarat' }),
+		// Called two days ago: once given to a sub-account, the 15-day cool-off keeps it there.
+		number('+918012345601', { region: 'Gujarat', last_call_at: new Date(Date.now() - 2 * 86_400_000).toISOString() }),
 		number('+918012345602', { trunk_group_id: 'trunk-1' }),
 		number('+918000000001', { capabilities: { voice: false } }),
 		number('+918000000002', { status: 'released' }),
 	];
 }
 
+/** A sub-account as Vobiz stores it; `publicView` is what Vobiz shows after creation. */
+function subAccountRecord(authId, n, fields = {}) {
+	const now = '2026-10-05T07:00:00.000000Z';
+	const kycMode = fields.kyc_mode || 'personal_use';
+	return {
+		name: fields.name,
+		email: fields.email ?? null,
+		phone: fields.phone ?? null,
+		description: fields.description ?? null,
+		permissions: fields.permissions ?? null,
+		rate_limit: fields.rate_limit ?? 1000,
+		id: String(500000 + n),
+		parent_account_id: '510762',
+		parent_auth_id: AUTH_ID,
+		auth_id: authId,
+		auth_token: `sa-secret-${n}`,
+		api_id: `api-sub-${n}`,
+		email_verified: false,
+		enabled: fields.enabled ?? true,
+		is_active: fields.enabled ?? true,
+		kyc_mode: kycMode,
+		business_type: fields.business_type ?? null,
+		kyc_calls_blocked: kycMode === 'customer_use',
+		created: now,
+		modified: now,
+		created_at: now,
+		updated_at: now,
+		account: `/v1/Account/${AUTH_ID}/`,
+		resource_uri: `/v1/Account/${AUTH_ID}/Subaccount/${authId}/`,
+		last_used: null,
+	};
+}
+
+const publicView = (subAccount) => ({ ...subAccount, auth_token: '<redacted>' });
+
+/** A sub-account of some other parent account: Vobiz answers 403 for it. */
+const FOREIGN_SUB_ACCOUNT = 'SA_OTHERPARENT';
+
 function createMockVobiz({ port = 0 } = {}) {
 	const state = {
+		subAccounts: new Map([['SA_SEED0001', subAccountRecord('SA_SEED0001', 0, { name: 'Seeded team', permissions: { calls: true, cdr: true } })]]),
+		kycSessions: [],
 		requests: [],
 		recentCalls: [],
 		recordings: [],
@@ -171,6 +214,8 @@ function createMockVobiz({ port = 0 } = {}) {
 			if (method === 'GET' && what === 'subscriptions') return send(res, 200, [...state.subscriptions.values()]);
 			if (method === 'GET' && what === 'applications') return send(res, 200, [...state.applications.values()]);
 			if (method === 'GET' && what === 'numbers') return send(res, 200, state.numbers);
+			if (method === 'GET' && what === 'sub-accounts') return send(res, 200, [...state.subAccounts.values()]);
+			if (method === 'GET' && what === 'kyc-sessions') return send(res, 200, state.kycSessions);
 			if (method === 'POST' && what === 'recent-calls') {
 				state.recentCalls = (body || []).map((n) => cdr(n));
 				return send(res, 200, { ok: true, count: state.recentCalls.length });
@@ -309,6 +354,114 @@ function createMockVobiz({ port = 0 } = {}) {
 			}
 		}
 
+		// Sub-accounts: /api/v1/accounts/{auth_id}/sub-accounts/ (lowercase, plural).
+		const accounts = `/api/v1/accounts/${AUTH_ID}/sub-accounts`;
+		if (path === `${accounts}/`) {
+			if (method === 'GET') {
+				const page = Number(query.page || 1);
+				const size = Number(query.size || 25);
+				let list = [...state.subAccounts.values()].reverse();
+				if (query.active_only === 'true') list = list.filter((s) => s.enabled);
+				const items = list.slice((page - 1) * size, page * size).map(publicView);
+				return send(res, 200, { sub_accounts: items, total: list.length, page, size });
+			}
+			if (method === 'POST') {
+				if (!body || !body.name) return send(res, 400, { error: 'name is required' });
+				if (body.kyc_mode === 'customer_use' && !body.email) return send(res, 400, { error: 'email is required for customer_use' });
+				const n = state.nextId++;
+				const authId = `SA_MOCK${String(n).padStart(4, '0')}`;
+				const record = subAccountRecord(authId, n, body);
+				state.subAccounts.set(authId, record);
+				return send(res, 201, {
+					message: 'Sub-account created successfully',
+					sub_account: record,
+					auth_credentials: { auth_id: authId, auth_token: record.auth_token },
+					tokens: { access_token: 'eyJ.mock.access', refresh_token: 'eyJ.mock.refresh', token_type: 'bearer', expires_in: 1800 },
+				});
+			}
+		}
+		const oneSub = new RegExp(`^${accounts}/([^/]+)$`).exec(path);
+		if (oneSub) {
+			const authId = decodeURIComponent(oneSub[1]);
+			if (authId === FOREIGN_SUB_ACCOUNT) return send(res, 403, { error: 'forbidden' });
+			const found = state.subAccounts.get(authId);
+			if (!found) return send(res, 404, { error: 'Sub-account not found' });
+			if (method === 'GET') return send(res, 200, publicView(found));
+			if (method === 'PUT') {
+				if (body.kyc_mode === 'customer_use' && !(body.email || found.email)) return send(res, 400, { error: 'email is required for customer_use' });
+				Object.assign(found, body);
+				if (body.kyc_mode) found.kyc_calls_blocked = body.kyc_mode === 'customer_use';
+				return send(res, 200, publicView(found));
+			}
+			if (method === 'DELETE') {
+				state.subAccounts.delete(authId);
+				return send(res, 200, { message: 'Sub-account deleted successfully' });
+			}
+		}
+
+		// Giving a number to a sub-account: /api/v1/account/{auth_id}/numbers/%2B.../assign-subaccount.
+		const assign = new RegExp(`^/api/v1/account/${AUTH_ID}/numbers/([^/]+)/assign-subaccount$`).exec(path);
+		if (assign) {
+			const found = state.numbers.find((n) => n.e164 === decodeURIComponent(assign[1]));
+			if (method === 'POST') {
+				const subAccount = state.subAccounts.get(body && body.sub_account_id);
+				if (!found || found.account_id !== AUTH_ID || !subAccount) {
+					return send(res, 404, { error: 'not_found', message: 'number or sub-account not found' });
+				}
+				found.account_id = subAccount.auth_id;
+				return send(res, 204);
+			}
+			if (method === 'DELETE') {
+				if (!found || !String(found.account_id).startsWith('SA_')) return send(res, 404, { error: 'not_found', message: 'number not assigned' });
+				const lastCall = found.last_call_at ? Date.parse(found.last_call_at) : NaN;
+				const coolOffEnds = lastCall + 15 * 86_400_000;
+				if (Number.isFinite(lastCall) && coolOffEnds > Date.now()) {
+					return send(res, 409, {
+						error: 'did_cool_off_in_effect',
+						cool_off_until: new Date(coolOffEnds).toISOString(),
+						cool_off_remaining_seconds: Math.round((coolOffEnds - Date.now()) / 1000),
+					});
+				}
+				found.account_id = AUTH_ID;
+				return send(res, 204);
+			}
+		}
+
+		// Sub-account KYC: /api/v1/sub-accounts/{sub_auth_id}/kyc/status and /kyc-sessions.
+		const kyc = /^\/api\/v1\/sub-accounts\/([^/]+)\/(kyc\/status|kyc-sessions)$/.exec(path);
+		if (kyc) {
+			const authId = decodeURIComponent(kyc[1]);
+			if (authId === FOREIGN_SUB_ACCOUNT) return send(res, 403, { error: 'forbidden', message: 'not the parent of this sub-account' });
+			const found = state.subAccounts.get(authId);
+			if (!found) return send(res, 404, { error: 'not_found', message: 'Sub-account not found' });
+			if (method === 'GET' && kyc[2] === 'kyc/status') {
+				return send(res, 200, {
+					sub_account_id: authId,
+					kyc_mode: found.kyc_mode,
+					business_type: found.business_type,
+					overall_status: found.kyc_calls_blocked ? 'pending' : 'verified',
+					kyc_calls_blocked: found.kyc_calls_blocked,
+					verifications: { pan: found.kyc_calls_blocked ? 'pending' : 'verified', gst: 'not_started', aadhaar: 'not_started', cin: 'not_started' },
+				});
+			}
+			if (method === 'POST' && kyc[2] === 'kyc-sessions') {
+				if (body.flow_type === 'email' && !body.customer_email) return send(res, 422, { error: 'customer_email is required' });
+				if (body.flow_type === 'redirect' && !body.redirect_url) return send(res, 422, { error: 'redirect_url is required' });
+				const sessionId = `kyc-session-${state.nextId++}`;
+				state.kycSessions.push({ session_id: sessionId, ...body });
+				const redirect = body.flow_type === 'redirect';
+				return send(res, 201, {
+					session_id: sessionId,
+					account_auth_id: authId,
+					customer_email: redirect ? null : body.customer_email,
+					status: redirect ? 'link_ready' : 'email_sent',
+					expires_at: '2026-10-12T07:00:00Z',
+					widget_url: redirect ? `https://kyc.vobiz.ai/verify?token=kst_${sessionId}` : null,
+					message: redirect ? 'Redirect your customer to widget_url to begin.' : 'KYC email dispatched successfully',
+				});
+			}
+		}
+
 		const messaging = '/api/v1/messaging';
 		if (path.startsWith(messaging)) {
 			const rest = path.slice(messaging.length);
@@ -376,7 +529,7 @@ function createMockVobiz({ port = 0 } = {}) {
 	});
 }
 
-module.exports = { createMockVobiz, initialNumbers, AUTH_ID, AUTH_TOKEN, WAV_BYTES, cdr, recording };
+module.exports = { createMockVobiz, initialNumbers, AUTH_ID, AUTH_TOKEN, WAV_BYTES, cdr, recording, FOREIGN_SUB_ACCOUNT };
 
 // `node test/mock-vobiz.js 18911` runs it on its own, for the end-to-end run.
 if (require.main === module) {

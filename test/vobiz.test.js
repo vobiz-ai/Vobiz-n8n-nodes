@@ -319,3 +319,24 @@ test('Lists: From numbers show only active voice numbers; templates need a chann
 	assert.deepEqual(templates.results.map((r) => r.value), ['tpl-1', 'tpl-2', 'tpl-3'], 'only approved templates');
 	assert.equal(lastRequest('GET', '/templates').query.status, 'APPROVED');
 });
+
+test('Make a Call with Connect To puts the numbers on the trigger address, and not on the hangup address', async () => {
+	const [[item]] = await run(makeCallParams({ connectTo: '+91 98450 00009, 919845000010' }));
+	const request = lastRequest('POST', '/Call/');
+	const answer = new URL(request.body.answer_url);
+	assert.equal(answer.searchParams.get('vobizConnectTo'), '+919845000009,+919845000010');
+	assert.equal(new URL(request.body.hangup_url).searchParams.has('vobizConnectTo'), false);
+	assert.deepEqual(item.json.connect_to, ['+919845000009', '+919845000010']);
+});
+
+test('Make a Call refuses Connect To without a trigger, or with something that is not a phone number', async () => {
+	mock.state.requests.length = 0;
+	await assert.rejects(
+		run(makeCallParams({ answerUrl: 'https://example.com/answer.xml', connectTo: '+919845000009' })),
+		/Connect To needs a Vobiz Call Answered Trigger/,
+	);
+	// "<" is Vobiz's bulk-dial separator: it must never reach a Dial.
+	await assert.rejects(run(makeCallParams({ connectTo: '+919845000009<+919845000010' })), /not a phone number/);
+	await assert.rejects(run(makeCallParams({ connectTo: 'reception' })), /"reception" in Connect To/);
+	assert.equal(lastRequest('POST', '/Call/'), undefined, 'no call was placed');
+});

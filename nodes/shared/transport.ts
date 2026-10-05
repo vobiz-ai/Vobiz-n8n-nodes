@@ -19,12 +19,14 @@ export type VobizFunctions =
 	| IWebhookFunctions;
 
 /**
- * Vobiz serves three URL families, and a wrong one answers 401 or 404:
+ * Vobiz serves five URL families, and a wrong one answers 401 or 404:
  * - voice: /api/v1/Account/{auth_id}/... (PascalCase, the account in the path)
+ * - accounts: /api/v1/accounts/{auth_id}/... (lowercase plural: sub-accounts)
+ * - account: /api/v1/account/{auth_id}/... (lowercase singular: giving a number to a sub-account)
  * - messaging: /api/v1/messaging/... (WhatsApp; the account comes from the headers)
- * - root: /api/v1/... (for example /auth/me)
+ * - root: /api/v1/... (for example /auth/me, and sub-account KYC)
  */
-export type VobizApiFamily = 'voice' | 'messaging' | 'root';
+export type VobizApiFamily = 'voice' | 'accounts' | 'account' | 'messaging' | 'root';
 
 export interface VobizRequestOptions {
 	family?: VobizApiFamily;
@@ -33,6 +35,8 @@ export interface VobizRequestOptions {
 	itemIndex?: number;
 	/** What to tell the user when Vobiz answers 404, e.g. "No call record has this call UUID". */
 	notFoundMessage?: string;
+	/** What to tell the user when Vobiz answers 403, when that means "not yours" rather than a bad token. */
+	forbidden?: { message: string; description: string };
 }
 
 export interface VobizAccount {
@@ -51,6 +55,8 @@ export async function getVobizAccount(this: VobizFunctions): Promise<VobizAccoun
 export function vobizUrl(account: VobizAccount, family: VobizApiFamily, endpoint: string): string {
 	if (family === 'messaging') return `${account.apiUrl}/api/v1/messaging${endpoint}`;
 	if (family === 'root') return `${account.apiUrl}/api/v1${endpoint}`;
+	if (family === 'accounts') return `${account.apiUrl}/api/v1/accounts/${encodeURIComponent(account.authId)}${endpoint}`;
+	if (family === 'account') return `${account.apiUrl}/api/v1/account/${encodeURIComponent(account.authId)}${endpoint}`;
 	return `${account.apiUrl}/api/v1/Account/${encodeURIComponent(account.authId)}${endpoint}`;
 }
 
@@ -82,7 +88,9 @@ export function httpStatusOf(error: unknown): number | undefined {
 function wordingFor(
 	status: number | undefined,
 	notFoundMessage?: string,
+	forbidden?: { message: string; description: string },
 ): { message: string; description: string } | undefined {
+	if (status === 403 && forbidden) return forbidden;
 	if (status === 401 || status === 403) {
 		return {
 			message: 'Vobiz did not accept the Auth ID or Auth Token',
@@ -124,10 +132,10 @@ function isNodeApiError(error: unknown): error is NodeApiError {
 export function vobizApiError(
 	this: VobizFunctions,
 	error: unknown,
-	options: { itemIndex?: number; notFoundMessage?: string } = {},
+	options: Pick<VobizRequestOptions, 'itemIndex' | 'notFoundMessage' | 'forbidden'> = {},
 ): NodeApiError {
 	const status = httpStatusOf(error);
-	const wording = wordingFor(status, options.notFoundMessage);
+	const wording = wordingFor(status, options.notFoundMessage, options.forbidden);
 
 	// n8n's request helpers already wrap failures in a NodeApiError, and wrapping
 	// one again hands back the original unchanged. So the wording goes onto it.
@@ -199,8 +207,17 @@ export async function vobizApiRequestIfFound(
  * - page: page + per_page (max 100), results in `data`, `pagination.has_next` (call records)
  * - pageItems: page + per_page, results in `items`, a short page means the end (numbers)
  * - pageLimit: page + limit (max 100), results in `items`, `has_more` (WhatsApp templates)
+ * - pageSize: page + size, results in `sub_accounts`, `total` (sub-accounts)
  */
-export type VobizPaging = 'offset' | 'page' | 'pageItems' | 'pageLimit';
+export type VobizPaging = 'offset' | 'page' | 'pageItems' | 'pageLimit' | 'pageSize';
+
+const RESULTS_KEY: Record<VobizPaging, string> = {
+	offset: 'objects',
+	page: 'data',
+	pageItems: 'items',
+	pageLimit: 'items',
+	pageSize: 'sub_accounts',
+};
 
 export async function vobizApiRequestAllItems(
 	this: VobizFunctions,
@@ -222,13 +239,16 @@ export async function vobizApiRequestAllItems(
 		} else if (paging === 'page' || paging === 'pageItems') {
 			qs.page = page;
 			qs.per_page = pageSize;
+		} else if (paging === 'pageSize') {
+			qs.page = page;
+			qs.size = pageSize;
 		} else {
 			qs.page = page;
 			qs.limit = pageSize;
 		}
 
 		const response = await vobizApiRequest.call(this, 'GET', endpoint, { ...options, qs });
-		const key = paging === 'offset' ? 'objects' : paging === 'page' ? 'data' : 'items';
+		const key = RESULTS_KEY[paging];
 		const pageItems = Array.isArray(response[key]) ? (response[key] as IDataObject[]) : [];
 		results.push(...pageItems);
 		if (results.length >= max) return results.slice(0, max);
@@ -240,6 +260,8 @@ export async function vobizApiRequestAllItems(
 			more = Boolean((response.pagination as IDataObject | undefined)?.has_next);
 		} else if (paging === 'pageLimit') {
 			more = response.has_more === true;
+		} else if (paging === 'pageSize' && typeof response.total === 'number') {
+			more = results.length < response.total;
 		} else {
 			more = pageItems.length >= pageSize;
 		}
