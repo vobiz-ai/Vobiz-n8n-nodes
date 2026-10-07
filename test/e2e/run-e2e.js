@@ -216,16 +216,16 @@ async function main() {
 					'Assign Number': { main: [[{ node: unassign.name, type: 'main', index: 0 }]] },
 				},
 			),
-			workflow('e2eAnswered00001', 'E2E Call Answered Trigger', [
+			workflow('e2eAnswered00001', 'E2E Vobiz Trigger (Calls)', [
 				{
 					id: crypto.randomUUID(),
 					name: 'Call Answered',
-					type: TYPE('vobizCallAnsweredTrigger'),
-					typeVersion: 1,
+					type: TYPE('vobizTrigger'),
+					typeVersion: 2,
 					position: [0, 0],
 					webhookId: 'e2e-answered-hook',
 					parameters: {
-						events: ['callAnswered', 'callEnded'],
+						callEvents: ['callAnswered', 'callEnded'],
 						numbers: ['+918012345699'],
 						message: 'Default trigger message',
 						voice: 'WOMAN',
@@ -236,15 +236,15 @@ async function main() {
 				},
 			]),
 			// Pointed at the number the (mock) CRM already uses: it must refuse to take it.
-			workflow('e2eRefuseCrm0001', 'E2E Call Answered Trigger on a CRM number', [
+			workflow('e2eRefuseCrm0001', 'E2E Vobiz Trigger (Calls) on a CRM number', [
 				{
 					id: crypto.randomUUID(),
 					name: 'Call Answered',
-					type: TYPE('vobizCallAnsweredTrigger'),
-					typeVersion: 1,
+					type: TYPE('vobizTrigger'),
+					typeVersion: 2,
 					position: [0, 0],
 					webhookId: 'e2e-refuse-hook',
-					parameters: { events: ['callAnswered'], numbers: ['+918012345678'], message: 'Should never answer', voice: 'WOMAN', language: 'en-US', options: {} },
+					parameters: { callEvents: ['callAnswered'], numbers: ['+918012345678'], message: 'Should never answer', voice: 'WOMAN', language: 'en-US', options: {} },
 					credentials: cred,
 				},
 			]),
@@ -252,24 +252,24 @@ async function main() {
 				{
 					id: crypto.randomUUID(),
 					name: 'WhatsApp',
-					type: TYPE('vobizWhatsAppTrigger'),
-					typeVersion: 1,
+					type: TYPE('vobizTrigger'),
+					typeVersion: 2,
 					position: [0, 0],
 					webhookId: 'e2e-wa-hook',
-					parameters: { events: ['message.inbound'], channel: { __rl: true, mode: 'list', value: '' }, simplify: true },
+					parameters: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { __rl: true, mode: 'list', value: '' }, simplify: true },
 					credentials: cred,
 				},
 			]),
-			workflow('e2eMenuTrigger01', 'E2E Call Answered Trigger with a menu', [
+			workflow('e2eMenuTrigger01', 'E2E Vobiz Trigger (Calls) with a menu', [
 				{
 					id: crypto.randomUUID(),
 					name: 'Menu',
-					type: TYPE('vobizCallAnsweredTrigger'),
-					typeVersion: 1,
+					type: TYPE('vobizTrigger'),
+					typeVersion: 2,
 					position: [0, 0],
 					webhookId: 'e2e-menu-hook',
 					parameters: {
-						events: ['keyPressed', 'forwardFinished', 'voicemailRecorded'],
+						callEvents: ['keyPressed', 'forwardFinished', 'voicemailRecorded'],
 						numbers: [],
 						message: 'Press 1 for sales, 2 for our hours, 3 to leave a message.',
 						voice: 'WOMAN',
@@ -291,21 +291,40 @@ async function main() {
 				{
 					id: crypto.randomUUID(),
 					name: 'KYC',
-					type: TYPE('vobizKycTrigger'),
-					typeVersion: 1,
+					type: TYPE('vobizTrigger'),
+					typeVersion: 2,
 					position: [0, 0],
 					webhookId: 'e2e-kyc-hook',
-					parameters: { events: ['kyc.completed', 'kyc.failed'], subAccount: { __rl: true, mode: 'list', value: '' }, requireSignature: true, simplify: true },
+					parameters: { source: 'kyc', kycEvents: ['kyc.completed', 'kyc.failed'], subAccount: { __rl: true, mode: 'list', value: '' }, requireSignature: true, simplify: true },
 					credentials: cred,
 				},
 			]),
-			workflow('e2ePollCalls0001', 'E2E Vobiz Trigger', [
+			// "Every call on the account" in 0.3.0: n8n's Schedule Trigger, then Get Many call records.
+			workflow(
+				'e2eScheduleCdr01',
+				'E2E Schedule + Get Many call records',
+				[
+					{
+						id: crypto.randomUUID(),
+						name: 'Every Minute',
+						type: 'n8n-nodes-base.scheduleTrigger',
+						typeVersion: 1.2,
+						position: [0, 0],
+						parameters: { rule: { interval: [{ field: 'minutes', minutesInterval: 1 }] } },
+					},
+					vobizNode('Recent Calls', { resource: 'callRecord', operation: 'getAll', returnAll: false, limit: 5, filters: {} }, 0),
+				],
+				{ 'Every Minute': { main: [[{ node: 'Recent Calls', type: 'main', index: 0 }]] } },
+			),
+			// A Vobiz Trigger saved by 0.2.0 (version 1, which checked Vobiz on a schedule).
+			workflow('e2eLegacyTrig001', 'E2E old scheduled Vobiz Trigger', [
 				{
 					id: crypto.randomUUID(),
 					name: 'Call Ended',
 					type: TYPE('vobizTrigger'),
 					typeVersion: 1,
 					position: [0, 0],
+					webhookId: 'e2e-legacy-hook',
 					parameters: { event: 'callEnded', pollTimes: { item: [{ mode: 'everyMinute' }] }, filters: {}, simplify: true },
 					credentials: cred,
 				},
@@ -376,10 +395,12 @@ async function main() {
 		);
 
 		step('switching on the triggers');
-		for (const id of ['e2eAnswered00001', 'e2eRefuseCrm0001', 'e2eWhatsAppTrg01', 'e2eMenuTrigger01', 'e2eKycTrigger001', 'e2ePollCalls0001']) {
+		for (const id of ['e2eAnswered00001', 'e2eRefuseCrm0001', 'e2eWhatsAppTrg01', 'e2eMenuTrigger01', 'e2eKycTrigger001', 'e2eScheduleCdr01']) {
 			out = n8n(['publish:workflow', `--id=${id}`]);
 			check(`publish ${id}`, out.status === 0, tail(out).slice(-400));
 		}
+		// The 0.2.0 node may already be refused here; if not, it must be refused when n8n starts.
+		const legacyPublish = n8n(['publish:workflow', '--id=e2eLegacyTrig001']);
 		const lastExecution = query('SELECT COALESCE(MAX(id), 0) AS id FROM execution_entity')[0]?.id ?? 0;
 
 		step('starting n8n');
@@ -425,7 +446,7 @@ async function main() {
 		const subscription = subscriptions.find((s) => s.url === `${PUBLIC_URL}webhook/e2e-wa-hook/whatsapp`);
 		check('switching on the WhatsApp Trigger registered a subscription with a secret', Boolean(subscription?.secret), JSON.stringify(subscriptions));
 
-		step('Vobiz asking the Call Answered Trigger what to say');
+		step('Vobiz asking the Vobiz Trigger (Calls) what to say');
 		// Vobiz signs the public address it called, without the query string, with the Auth Token.
 		const answeredBase = `${PUBLIC_URL}webhook/e2e-answered-hook/call-answered`;
 		const vobizSigned = (nonce) => ({
@@ -552,23 +573,35 @@ async function main() {
 			check('an unsigned KYC event is refused with 401', unsigned.status === 401, String(unsigned.status));
 		}
 
-		step('the Vobiz Trigger: first check takes note, then a new call fires it (about two minutes)');
+		step('every call on the account: Schedule Trigger, then Get Many call records (about a minute)');
 		const executionsOf = (workflowId) => query('SELECT id, status, mode FROM execution_entity WHERE workflowId = ? AND id > ? ORDER BY id', workflowId, lastExecution);
-		// Wait past the first poll, which only notes the call already there.
-		await sleep(Math.max(0, 62_000 - (Date.now() - startedAt)));
-		// A call ID never used before: the trigger remembers calls across runs, as it should.
-		const freshCall = 1000 + Math.floor(Math.random() * 1_000_000);
-		await control('recent-calls', 'POST', [freshCall, 1]);
-		let polled = [];
-		for (let waited = 0; waited < 90_000 && polled.length === 0; waited += 5000) {
+		let scheduled = [];
+		for (let waited = 0; waited < 100_000 && scheduled.length === 0; waited += 5000) {
 			await sleep(5000);
-			polled = executionsOf('e2ePollCalls0001');
+			scheduled = executionsOf('e2eScheduleCdr01');
 		}
-		check('it fired once, for the new call only', polled.length === 1 && polled[0].status === 'success', JSON.stringify(polled));
+		const scheduledData = scheduled.length
+			? (query('SELECT data FROM execution_data WHERE executionId = ?', scheduled[0].id)[0]?.data ?? '')
+			: '';
+		check(
+			'the Schedule Trigger ran Get Many call records on its own, and it returned the calls',
+			scheduled.length >= 1 && scheduled[0].status === 'success' && scheduledData.includes('Recent Calls') && scheduledData.includes('uuid'),
+			JSON.stringify(scheduled) + ' ' + scheduledData.slice(0, 200),
+		);
+
+		step('a Vobiz Trigger saved by 0.2.0 (version 1) is refused, not turned into a webhook');
+		const n8nLog = fs.readFileSync(path.join(work, 'n8n.log'), 'utf8');
+		const legacyActive = query("SELECT active FROM workflow_entity WHERE id = 'e2eLegacyTrig001'")[0]?.active;
+		check(
+			'it registered nothing at Vobiz, and n8n says why it is not running',
+			!applications.some((a) => String(a.answer_url ?? '').includes('e2e-legacy-hook')) &&
+				(legacyPublish.status !== 0 || n8nLog.includes('checked Vobiz on a schedule') || !legacyActive),
+			`publish=${legacyPublish.status}; active=${legacyActive}; log: ${(n8nLog.match(/.*(schedule|Legacy|old scheduled).*/gi) ?? []).slice(0, 3).join(' | ')}`,
+		);
 
 		const answeredRuns = executionsOf('e2eAnswered00001');
 		check(
-			'the Call Answered Trigger ran twice: once when answered, once the moment the call ended',
+			'the Vobiz Trigger (Calls) ran twice: once when answered, once the moment the call ended',
 			answeredRuns.length === 2 && answeredRuns.every((r) => r.status === 'success'),
 			JSON.stringify(answeredRuns),
 		);

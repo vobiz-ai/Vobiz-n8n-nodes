@@ -2,17 +2,18 @@
   "name": "Vobiz test 10 - Call menu",
   "nodes": [
     {
-      "id": "00000000-0000-4000-8000-000000000037",
-      "name": "Vobiz Call Answered Trigger",
-      "type": "CUSTOM.vobizCallAnsweredTrigger",
-      "typeVersion": 1,
+      "id": "00000000-0000-4000-8000-000000000039",
+      "name": "Vobiz Trigger (Calls)",
+      "type": "CUSTOM.vobizTrigger",
+      "typeVersion": 2,
       "position": [
         0,
         0
       ],
       "webhookId": "a10c2d3e-4f50-4617-8293-a4b5c6d7e8f9",
       "parameters": {
-        "events": [
+        "source": "calls",
+        "callEvents": [
           "keyPressed",
           "forwardFinished",
           "voicemailRecorded",
@@ -51,7 +52,7 @@
       }
     },
     {
-      "id": "00000000-0000-4000-8000-000000000038",
+      "id": "00000000-0000-4000-8000-000000000040",
       "name": "Only Voicemails",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
@@ -84,7 +85,7 @@
       }
     },
     {
-      "id": "00000000-0000-4000-8000-000000000039",
+      "id": "00000000-0000-4000-8000-000000000041",
       "name": "Download Voicemail",
       "type": "CUSTOM.vobiz",
       "typeVersion": 1,
@@ -100,8 +101,8 @@
       }
     },
     {
-      "id": "00000000-0000-4000-8000-000000000040",
-      "name": "Note 40",
+      "id": "00000000-0000-4000-8000-000000000042",
+      "name": "Note 42",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -116,7 +117,7 @@
     }
   ],
   "connections": {
-    "Vobiz Call Answered Trigger": {
+    "Vobiz Trigger (Calls)": {
       "main": [
         [
           {

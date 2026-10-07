@@ -41,7 +41,7 @@ export const recordingFields: INodeProperties[] = [
 		default: '',
 		required: true,
 		placeholder: 'e.g. c2186400-1f94-11ef-9a1b-0242ac110003',
-		description: 'The ID of the recording, e.g. recording_id from Get Many or the Vobiz Trigger',
+		description: 'The ID of the recording, e.g. recording_id from Get Many, or from the Vobiz Trigger’s Voicemail Recorded event',
 		displayOptions: show(['download', 'get']),
 	},
 	{

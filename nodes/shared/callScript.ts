@@ -172,10 +172,10 @@ export const SPEAK_LANGUAGES: Array<{ name: string; value: string }> = [
 	{ name: 'Swedish (Woman Only)', value: 'sv-SE' },
 ];
 
-/** The query parameter Make a Call uses to hand its Message to a Call Answered Trigger. */
+/** The query parameter Make a Call uses to hand its Message to a Vobiz Trigger (Source: Calls). */
 export const MESSAGE_QUERY_PARAMETER = 'vobizMessage';
 
-/** The query parameter Make a Call uses to ask a Call Answered Trigger to connect the call to a number. */
+/** The query parameter Make a Call uses to ask a Vobiz Trigger (Source: Calls) to connect the call to a number. */
 export const CONNECT_QUERY_PARAMETER = 'vobizConnectTo';
 
 /**
@@ -197,5 +197,5 @@ export function parsePhoneList(raw: unknown): { numbers: string[]; invalid: stri
 /** The query parameter marking a request as a call-ended report, on the trigger's hangup address. */
 export const EVENT_QUERY_PARAMETER = 'vobizEvent';
 
-/** The last part of a Call Answered Trigger's address, used to recognise one. */
+/** The last part of a Vobiz Trigger (Source: Calls) address, used to recognise one. */
 export const CALL_ANSWERED_PATH = 'call-answered';

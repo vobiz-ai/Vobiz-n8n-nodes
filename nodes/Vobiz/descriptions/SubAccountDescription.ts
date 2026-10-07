@@ -472,7 +472,7 @@ export const subAccountFields: INodeProperties[] = [
 				default: '',
 				placeholder: 'e.g. https://n8n.example.com/webhook/1a2b3c/kyc',
 				description:
-					'Where Vobiz reports progress: started, submitted, completed, failed or expired. Paste the Production URL of a Vobiz KYC Trigger.',
+					'Where Vobiz reports progress: started, submitted, completed, failed or expired. Paste the Production URL of a Vobiz Trigger (Source: Sub-Account KYC).',
 			},
 		],
 	},

@@ -94,10 +94,11 @@ function resolveParameter(params, name, itemIndex, fallback, options) {
 	return value;
 }
 
-function base({ credentials, staticData = {}, mode = 'trigger' }) {
+function base({ credentials, staticData = {}, mode = 'trigger', typeVersion }) {
+	const node = typeVersion === undefined ? NODE : { ...NODE, typeVersion };
 	return {
 		getCredentials: async () => credentials,
-		getNode: () => NODE,
+		getNode: () => node,
 		getWorkflow: () => ({ id: 'wfTest123', name: 'Test workflow', active: true }),
 		getWorkflowStaticData: () => staticData,
 		getMode: () => mode,
@@ -123,9 +124,10 @@ function pollContext({ credentials, params, staticData, mode = 'trigger' }) {
 	};
 }
 
-function hookContext({ credentials, params = {}, staticData, webhookUrl, mode = 'trigger' }) {
+// Trigger contexts default to the Vobiz Trigger's version (2); pass typeVersion to test another.
+function hookContext({ credentials, params = {}, staticData, webhookUrl, mode = 'trigger', typeVersion = 2 }) {
 	return {
-		...base({ credentials, staticData, mode }),
+		...base({ credentials, staticData, mode, typeVersion }),
 		getNodeParameter: (name, fallback, options) => resolveParameter(params, name, 0, fallback, options),
 		getNodeWebhookUrl: () => webhookUrl,
 	};
@@ -172,10 +174,11 @@ function webhookContext({
 	rawBody,
 	webhookUrl,
 	resourceUrl,
+	typeVersion = 2,
 }) {
 	const res = fakeResponse();
 	const context = {
-		...base({ credentials, staticData }),
+		...base({ credentials, staticData, typeVersion }),
 		getNodeParameter: (name, fallback, options) => resolveParameter(params, name, 0, fallback, options),
 		getBodyData: () => body,
 		getQueryData: () => query,

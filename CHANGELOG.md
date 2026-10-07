@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 - 2026-10-07
+
+One trigger node instead of four, as n8n's review of verified packages asks: one action node and one trigger node. Nothing was taken away. See [Upgrading from 0.2](README.md#upgrading-from-02).
+
+- **Vobiz Trigger** now has a **Source** setting: **Calls**, **WhatsApp** or **Sub-Account KYC**. Each source works exactly as its own trigger did, with the same settings and output, and shows only its own settings.
+- **Removed** the separate **Vobiz Call Answered Trigger**, **Vobiz WhatsApp Trigger** and **Vobiz KYC Trigger**: use the Vobiz Trigger with Source **Calls**, **WhatsApp** or **Sub-Account KYC**. Unpublish workflows that use them before updating, then replace the trigger and publish again. The new trigger has a new Production URL.
+- **Removed** the scheduled check for ended calls and new recordings that the Vobiz Trigger did up to 0.2. Use n8n's **Schedule Trigger** → **Vobiz: Call Record → Get Many** (or **Recording → Get Many**) → **Remove Duplicates**, as described in the README. A Vobiz Trigger saved by 0.2 is refused with a message saying so, and registers nothing at Vobiz.
+- The trigger's addresses keep their endings (`/call-answered`, `/whatsapp`, `/kyc`), so **Make a Call**'s Connect To and Message keep working with it.
+
 ## 0.2.0 - 2026-10-05
 
 - **Vobiz** node: a new **Sub-Account** resource. **Create**, **Get**, **Get Many**, **Update** and **Delete** sub-accounts (personal use, sharing your KYC, or customer use, with their own KYC). **Assign Number** and **Unassign Number** move a number between your main account and a sub-account; Unassign says until when when Vobiz's 15-day cool-off applies. **Start KYC** sends a customer the Vobiz KYC page by email or as a link, and **Get KYC Status** says whether they can make calls yet. Only **Create** passes on the new sub-account's Auth Token, the one time Vobiz shows it.

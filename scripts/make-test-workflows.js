@@ -47,13 +47,14 @@ function buildAll(dir, numbers, myMobile = '', myEmail = '', agentNumber = '') {
 		nodes: [
 			{
 				id: id(),
-				name: 'Vobiz Call Answered Trigger',
-				type: `${PKG}.vobizCallAnsweredTrigger`,
-				typeVersion: 1,
+				name: 'Vobiz Trigger (Calls)',
+				type: `${PKG}.vobizTrigger`,
+				typeVersion: 2,
 				position: [0, 0],
 				webhookId: '4a1f6b2c-0d3e-4f5a-9b8c-1d2e3f4a5b6c',
 				parameters: {
-					events: ['callAnswered', 'callEnded'],
+					source: 'calls',
+					callEvents: ['callAnswered', 'callEnded'],
 					numbers,
 					message: 'Hello! You have reached the n8n test line on Vobiz. Thank you, goodbye.',
 					voice: 'WOMAN',
@@ -101,19 +102,33 @@ function buildAll(dir, numbers, myMobile = '', myEmail = '', agentNumber = '') {
 		nodes: [
 			{
 				id: id(),
-				name: 'Vobiz Trigger',
-				type: `${PKG}.vobizTrigger`,
-				typeVersion: 1,
+				name: 'Every Minute',
+				type: 'n8n-nodes-base.scheduleTrigger',
+				typeVersion: 1.2,
 				position: [0, 0],
-				parameters: { event: 'callEnded', pollTimes: { item: [{ mode: 'everyMinute' }] }, filters: {}, simplify: true },
+				parameters: { rule: { interval: [{ field: 'minutes', minutesInterval: 1 }] } },
+			},
+			vobiz('Recent Calls', { resource: 'callRecord', operation: 'getAll', returnAll: false, limit: 20, filters: {} }, 260),
+			{
+				id: id(),
+				name: 'Only New Calls',
+				type: 'n8n-nodes-base.removeDuplicates',
+				typeVersion: 2,
+				position: [520, 0],
+				parameters: {
+					operation: 'removeItemsSeenInPreviousExecutions',
+					logic: 'removeItemsWithAlreadySeenKeyValues',
+					dedupeValue: '={{ $json.uuid }}',
+					options: {},
+				},
 			},
 			note(
-				'## Test 3: every call on the account\nIt watches every number on the account, including numbers used by other setups such as a CRM integration, without changing them. It checks once a minute.\n1. Pick your credential.\n2. Click **Fetch Test Event**: you see your latest answered call.\n3. **Publish**, make any call, and within about a minute a new run appears under **Executions**.',
+				"## Test 3: every call on the account\nn8n's **Schedule Trigger** asks Vobiz for the latest calls once a minute; **Remove Duplicates** passes on only calls it has not seen before. It watches every number on the account, including numbers used by other setups such as a CRM integration, without changing them.\n1. Pick your credential in **Recent Calls**.\n2. Click **Execute workflow**: you see your latest calls (the first run passes them all on).\n3. **Publish**, make any call, and within about a minute a new run appears under **Executions** with just that call.",
 				-40,
-				-360,
+				-380,
 			),
 		],
-		connections: {},
+		connections: { ...link('Every Minute', 'Recent Calls'), ...link('Recent Calls', 'Only New Calls') },
 	});
 
 	write('4 - Call records report.json', {
@@ -168,12 +183,12 @@ function buildAll(dir, numbers, myMobile = '', myEmail = '', agentNumber = '') {
 		nodes: [
 			{
 				id: id(),
-				name: 'Vobiz WhatsApp Trigger',
-				type: `${PKG}.vobizWhatsAppTrigger`,
-				typeVersion: 1,
+				name: 'Vobiz Trigger (WhatsApp)',
+				type: `${PKG}.vobizTrigger`,
+				typeVersion: 2,
 				position: [0, 0],
 				webhookId: '7b2c3d4e-5f60-4a71-8b92-a3b4c5d6e7f8',
-				parameters: { events: ['message.inbound'], channel: { __rl: true, mode: 'list', value: '' }, simplify: true },
+				parameters: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { __rl: true, mode: 'list', value: '' }, simplify: true },
 			},
 			{
 				id: id(),
@@ -218,7 +233,7 @@ function buildAll(dir, numbers, myMobile = '', myEmail = '', agentNumber = '') {
 				360,
 			),
 		],
-		connections: { ...link('Vobiz WhatsApp Trigger', 'Only My Phone'), ...link('Only My Phone', 'Reply') },
+		connections: { ...link('Vobiz Trigger (WhatsApp)', 'Only My Phone'), ...link('Only My Phone', 'Reply') },
 	});
 
 	const byId = (value) => ({ __rl: true, mode: 'id', value });
@@ -298,13 +313,14 @@ function buildAll(dir, numbers, myMobile = '', myEmail = '', agentNumber = '') {
 			),
 			{
 				id: id(),
-				name: 'Vobiz KYC Trigger',
-				type: `${PKG}.vobizKycTrigger`,
-				typeVersion: 1,
+				name: 'Vobiz Trigger (KYC)',
+				type: `${PKG}.vobizTrigger`,
+				typeVersion: 2,
 				position: [0, 300],
 				webhookId: '9c3d4e5f-6a7b-4c8d-9e0f-a1b2c3d4e5f6',
 				parameters: {
-					events: ['kyc.initiated', 'kyc.submitted', 'kyc.completed', 'kyc.failed', 'kyc.session_expired'],
+					source: 'kyc',
+					kycEvents: ['kyc.initiated', 'kyc.submitted', 'kyc.completed', 'kyc.failed', 'kyc.session_expired'],
 					subAccount: { __rl: true, mode: 'list', value: '' },
 					requireSignature: true,
 					simplify: true,
@@ -312,7 +328,7 @@ function buildAll(dir, numbers, myMobile = '', myEmail = '', agentNumber = '') {
 			},
 			vobiz('Delete Test Sub-Account (run last)', { resource: 'subAccount', operation: 'delete', subAccount: { __rl: true, mode: 'list', value: '' } }, 520, 300),
 			note(
-				`## Test 9: sub-account KYC\n1. Pick your **main account** credential in every Vobiz node and in the trigger.\n2. **Publish** the workflow. Open **Vobiz KYC Trigger**, copy its **Production URL**, and paste it into **Start KYC → Options → Webhook URL**.\n3. ${myEmail ? `**Create Customer Sub-Account** uses ${myEmail}.` : 'Enter your own email in **Customer Email** on **Create Customer Sub-Account**.'}\n4. Click **Execute workflow**. Start KYC returns the KYC page as **widget_url**. Don't submit documents: this test only checks the link and the events.\n5. In **Executions**, the trigger has run for *KYC Started*.\n6. Clean up: open **Delete Test Sub-Account (run last)**, pick *n8n KYC test*, and click **Execute step**. Then **Unpublish**.`,
+				`## Test 9: sub-account KYC\n1. Pick your **main account** credential in every Vobiz node and in the trigger.\n2. **Publish** the workflow. Open **Vobiz Trigger (KYC)**, copy its **Production URL**, and paste it into **Start KYC → Options → Webhook URL**.\n3. ${myEmail ? `**Create Customer Sub-Account** uses ${myEmail}.` : 'Enter your own email in **Customer Email** on **Create Customer Sub-Account**.'}\n4. Click **Execute workflow**. Start KYC returns the KYC page as **widget_url**. Don't submit documents: this test only checks the link and the events.\n5. In **Executions**, the trigger has run for *KYC Started*.\n6. Clean up: open **Delete Test Sub-Account (run last)**, pick *n8n KYC test*, and click **Execute step**. Then **Unpublish**.`,
 				-40,
 				-460,
 				620,
@@ -331,13 +347,14 @@ function buildAll(dir, numbers, myMobile = '', myEmail = '', agentNumber = '') {
 		nodes: [
 			{
 				id: id(),
-				name: 'Vobiz Call Answered Trigger',
-				type: `${PKG}.vobizCallAnsweredTrigger`,
-				typeVersion: 1,
+				name: 'Vobiz Trigger (Calls)',
+				type: `${PKG}.vobizTrigger`,
+				typeVersion: 2,
 				position: [0, 0],
 				webhookId: 'a10c2d3e-4f50-4617-8293-a4b5c6d7e8f9',
 				parameters: {
-					events: ['keyPressed', 'forwardFinished', 'voicemailRecorded', 'callEnded'],
+					source: 'calls',
+					callEvents: ['keyPressed', 'forwardFinished', 'voicemailRecorded', 'callEnded'],
 					numbers,
 					message: 'Welcome to the n8n test menu. Press 1 to talk to an agent. Press 2 to hear our opening hours. Press 3 to leave a message.',
 					voice: 'WOMAN',
@@ -391,7 +408,7 @@ function buildAll(dir, numbers, myMobile = '', myEmail = '', agentNumber = '') {
 				400,
 			),
 		],
-		connections: { ...link('Vobiz Call Answered Trigger', 'Only Voicemails'), ...link('Only Voicemails', 'Download Voicemail') },
+		connections: { ...link('Vobiz Trigger (Calls)', 'Only Voicemails'), ...link('Only Voicemails', 'Download Voicemail') },
 	});
 }
 

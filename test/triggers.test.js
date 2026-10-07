@@ -4,10 +4,8 @@ const assert = require('node:assert/strict');
 const { createHmac } = require('node:crypto');
 
 const { createMockVobiz, AUTH_ID, AUTH_TOKEN, cdr, recording } = require('./mock-vobiz');
-const { pollContext, hookContext, webhookContext, loadOptionsContext, logger } = require('./harness');
+const { hookContext, webhookContext, loadOptionsContext, logger } = require('./harness');
 const { VobizTrigger } = require('../dist/nodes/VobizTrigger/VobizTrigger.node.js');
-const { VobizCallAnsweredTrigger } = require('../dist/nodes/VobizCallAnsweredTrigger/VobizCallAnsweredTrigger.node.js');
-const { VobizWhatsAppTrigger } = require('../dist/nodes/VobizWhatsAppTrigger/VobizWhatsAppTrigger.node.js');
 
 let mock;
 let credentials;
@@ -20,76 +18,44 @@ beforeEach(() => {
 	mock.state.requests.length = 0;
 });
 
-// ---------------------------------------------------------------- Vobiz Trigger (polling)
+// ---------------------------------------------------------------- Vobiz Trigger: one node, three sources
 
 const trigger = new VobizTrigger();
-const poll = (params, staticData, mode) =>
-	trigger.poll.call(pollContext({ credentials, params, staticData, mode }));
 
-test('Call Ended: the first check only takes note, later checks emit each new call once', async () => {
-	const staticData = {};
-	const params = { event: 'callEnded', filters: {}, simplify: true };
-	mock.state.recentCalls = [cdr(2), cdr(1)];
-
-	assert.equal(await poll(params, staticData), null, 'existing calls do not fire on activation');
-	assert.equal(await poll(params, staticData), null, 'nothing new');
-
-	const unanswered = cdr(4, { answer_time: null, billsec: 0, hangup_cause: 'NO_ANSWER' });
-	mock.state.recentCalls = [unanswered, cdr(3), cdr(2), cdr(1)];
-	const [items] = await poll(params, staticData);
-	assert.deepEqual(items.map((i) => i.json.uuid), ['cdr-uuid-3'], 'unanswered call skipped by default');
-	assert.equal(items[0].json.answered, true);
-
-	assert.equal(await poll(params, staticData), null, 'the same calls never fire twice');
-
-	mock.state.recentCalls = [cdr(6), cdr(5), unanswered, cdr(3)];
-	const [next] = await poll({ ...params, filters: { answeredOnly: false } }, staticData);
-	assert.deepEqual(next.map((i) => i.json.uuid), ['cdr-uuid-5', 'cdr-uuid-6'], 'oldest first');
-	assert.equal(mock.state.requests.at(-1).query.limit, '100');
+test('Vobiz Trigger: one webhook node, version 2, with Calls, WhatsApp and KYC as its sources', () => {
+	const { description } = trigger;
+	assert.equal(description.name, 'vobizTrigger');
+	assert.equal(description.version, 2);
+	assert.equal(description.polling, undefined, 'no schedule part: n8n would show Poll Times and break test listening');
+	assert.equal(typeof trigger.poll, 'undefined');
+	assert.equal(description.webhooks.length, 1);
+	const source = description.properties.find((property) => property.name === 'source');
+	assert.deepEqual(source.options.map((option) => option.value).sort(), ['calls', 'kyc', 'whatsApp']);
+	assert.equal(source.default, 'calls');
+	// Each source's settings show only for that source.
+	for (const property of description.properties.filter((p) => p.name !== 'source')) {
+		assert.equal(property.displayOptions?.show?.source?.length, 1, `${property.name} belongs to one source`);
+	}
+	// The addresses stay what the separate triggers used.
+	assert.match(description.webhooks[0].path, /"whatsapp"/);
+	assert.match(description.webhooks[0].path, /"kyc"/);
+	assert.match(description.webhooks[0].path, /"call-answered"/);
 });
 
-test('Call Ended: filters by direction and by number, however it is written', async () => {
-	const staticData = {};
-	mock.state.recentCalls = [];
-	const params = { event: 'callEnded', filters: { direction: 'outbound', phoneNumber: '+91 98765 43210' }, simplify: false };
-	await poll(params, staticData);
-	mock.state.recentCalls = [
-		cdr(11),
-		cdr(12),
-		cdr(13, { caller_id_number: '918000000000', destination_number: '918111111111' }),
-	];
-	const [items] = await poll(params, staticData);
-	assert.deepEqual(items.map((i) => i.json.uuid), ['cdr-uuid-11'], 'outbound to 9876543210 only');
-	assert.ok('mos' in items[0].json, 'Simplify off returns the full record');
+test('Vobiz Trigger: a saved version 1 node (the old scheduled trigger) is refused, not turned into a webhook', async () => {
+	const hooksV1 = trigger.webhookMethods.default;
+	const context = hookContext({ credentials, staticData: {}, webhookUrl: 'https://n8n.example.com/webhook/old/call-answered', typeVersion: 1 });
+	await assert.rejects(hooksV1.create.call(context), /checked Vobiz on a schedule/);
+	assert.equal(await hooksV1.checkExists.call(context), false);
+	assert.equal(await hooksV1.delete.call(context), true);
+	assert.equal(mock.state.requests.length, 0, 'nothing is registered at Vobiz');
+	const { context: webhook } = webhookContext({ credentials, webhookUrl: 'https://n8n.example.com/webhook/old/call-answered', typeVersion: 1 });
+	await assert.rejects(trigger.webhook.call(webhook), /checked Vobiz on a schedule/);
 });
 
-test('Call Ended: Fetch Test Event returns the latest matching call, and changes nothing', async () => {
-	const staticData = {};
-	mock.state.recentCalls = [cdr(22), cdr(21)];
-	const [items] = await poll({ event: 'callEnded', filters: {}, simplify: true }, staticData, 'manual');
-	assert.deepEqual(items.map((i) => i.json.uuid), ['cdr-uuid-22']);
-	assert.deepEqual(staticData, {});
+// ---------------------------------------------------------------- Source: Calls
 
-	mock.state.recentCalls = [];
-	await assert.rejects(poll({ event: 'callEnded', filters: {}, simplify: true }, {}, 'manual'), /No recent call matches/);
-});
-
-test('Recording Ready: new recordings fire once, with the audio attached when asked', async () => {
-	const staticData = {};
-	mock.state.recordings = [recording(1, mock.baseUrl)];
-	const params = { event: 'recordingReady', download: true, binaryPropertyName: 'audio' };
-	assert.equal(await poll(params, staticData), null);
-
-	mock.state.recordings = [recording(3, mock.baseUrl), recording(2, mock.baseUrl), recording(1, mock.baseUrl)];
-	const [items] = await poll(params, staticData);
-	assert.deepEqual(items.map((i) => i.json.recording_id), ['rec-2', 'rec-3']);
-	assert.equal(items[0].binary.audio.mimeType, 'audio/wav');
-	assert.equal(await poll(params, staticData), null);
-});
-
-// ---------------------------------------------------------------- Call Answered Trigger
-
-const answered = new VobizCallAnsweredTrigger();
+const answered = trigger;
 const hooks = answered.webhookMethods.default;
 const PROD_URL = 'https://n8n.example.com/webhook/abc123/call-answered';
 
@@ -238,7 +204,7 @@ function vobizSigned(address, authToken = AUTH_TOKEN, nonce = '12345678901234567
 	};
 }
 
-/** A request to the Call Answered Trigger, signed by Vobiz unless the test says otherwise. */
+/** A request to the Vobiz Trigger (Calls), signed by Vobiz unless the test says otherwise. */
 const answeredContext = (options) =>
 	webhookContext({ webhookUrl: ANSWERED_URL, headers: vobizSigned(ANSWERED_URL), credentials, ...options });
 
@@ -284,7 +250,7 @@ test('Call Answered: the Message from Make a Call wins over the trigger message'
 test('Call Answered: a hangup report is acknowledged, and starts nothing unless Call Ended is chosen', async () => {
 	const { context, res } = answeredContext({
 		credentials,
-		params: { ...answeredParams, events: ['callAnswered'] },
+		params: { ...answeredParams, callEvents: ['callAnswered'] },
 		body: { CallUUID: 'call-3', Event: 'Hangup', CallStatus: 'completed' },
 	});
 	const result = await answered.webhook.call(context);
@@ -295,7 +261,7 @@ test('Call Answered: a hangup report is acknowledged, and starts nothing unless 
 test('Call Answered: with Call Ended chosen, the end of the call starts the workflow at once', async () => {
 	const { context, res } = answeredContext({
 		credentials,
-		params: { ...answeredParams, events: ['callAnswered', 'callEnded'] },
+		params: { ...answeredParams, callEvents: ['callAnswered', 'callEnded'] },
 		body: {
 			CallUUID: 'call-5',
 			From: '919876543210',
@@ -327,7 +293,7 @@ test('Call Answered: with Call Ended chosen, the end of the call starts the work
 test('Call Answered: an unanswered call is reported as ended, not answered', async () => {
 	const { context } = answeredContext({
 		credentials,
-		params: { ...answeredParams, events: ['callEnded'] },
+		params: { ...answeredParams, callEvents: ['callEnded'] },
 		query: { vobizEvent: 'hangup' },
 		body: { CallUUID: 'call-6', HangupCause: 'NO_ANSWER', Duration: '30', BillDuration: '0' },
 	});
@@ -340,7 +306,7 @@ test('Call Answered: an unanswered call is reported as ended, not answered', asy
 test('Call Answered: with only Call Ended chosen, it still answers the call but starts nothing then', async () => {
 	const { context, res } = answeredContext({
 		credentials,
-		params: { ...answeredParams, events: ['callEnded'] },
+		params: { ...answeredParams, callEvents: ['callEnded'] },
 		body: { CallUUID: 'call-7', Event: 'StartApp', CallStatus: 'in-progress' },
 	});
 	const result = await answered.webhook.call(context);
@@ -374,7 +340,7 @@ test('Call Answered: Custom XML replaces the script, with or without <Response>'
 
 test('Call Answered: a request without a Vobiz signature is refused, and starts nothing', async () => {
 	const { context, res } = answeredContext({
-		params: { ...answeredParams, events: ['callAnswered', 'callEnded'] },
+		params: { ...answeredParams, callEvents: ['callAnswered', 'callEnded'] },
 		headers: {},
 		body: { CallUUID: 'forged', Event: 'Hangup', CallStatus: 'completed' },
 	});
@@ -446,9 +412,10 @@ test('Call Answered: with Require Vobiz Signature off, an unsigned request is an
 
 // ---------------------------------------------------------------- WhatsApp Trigger
 
-const whatsApp = new VobizWhatsAppTrigger();
+const whatsApp = trigger;
 const waHooks = whatsApp.webhookMethods.default;
 const WA_URL = 'https://n8n.example.com/webhook/wa123/whatsapp';
+const WA_PARAMS = { source: 'whatsApp' };
 
 function inboundEvent(phoneNumberId = 'pnid-1') {
 	return {
@@ -511,7 +478,7 @@ function signed(event, secret) {
 
 test('WhatsApp: subscribes with a fresh secret, finds it again, and unsubscribes', async () => {
 	const staticData = {};
-	const context = hookContext({ credentials, staticData, webhookUrl: WA_URL });
+	const context = hookContext({ credentials, staticData, webhookUrl: WA_URL, params: WA_PARAMS });
 	assert.equal(await waHooks.checkExists.call(context), false);
 	await waHooks.create.call(context);
 	const sub = mock.state.subscriptions.get(staticData.subscriptionId);
@@ -527,7 +494,7 @@ test('WhatsApp: subscribes with a fresh secret, finds it again, and unsubscribes
 test('WhatsApp: an old subscription whose secret was lost is replaced', async () => {
 	mock.state.subscriptions.set('sub-old', { id: 'sub-old', url: WA_URL, secret: 'unknown', status: 'active' });
 	const staticData = {};
-	const context = hookContext({ credentials, staticData, webhookUrl: WA_URL });
+	const context = hookContext({ credentials, staticData, webhookUrl: WA_URL, params: WA_PARAMS });
 	assert.equal(await waHooks.checkExists.call(context), false);
 	assert.equal(mock.state.subscriptions.has('sub-old'), false);
 	await waHooks.create.call(context);
@@ -537,9 +504,9 @@ test('WhatsApp: an old subscription whose secret was lost is replaced', async ()
 
 test('WhatsApp: when n8n’s address changes, its old subscription is removed, not left behind', async () => {
 	const staticData = {};
-	await waHooks.create.call(hookContext({ credentials, staticData, webhookUrl: WA_URL }));
+	await waHooks.create.call(hookContext({ credentials, staticData, webhookUrl: WA_URL, params: WA_PARAMS }));
 	const oldId = staticData.subscriptionId;
-	const moved = hookContext({ credentials, staticData, webhookUrl: 'https://new-tunnel.example.com/webhook/wa123/whatsapp' });
+	const moved = hookContext({ credentials, staticData, webhookUrl: 'https://new-tunnel.example.com/webhook/wa123/whatsapp', params: WA_PARAMS });
 	assert.equal(await waHooks.checkExists.call(moved), false);
 	assert.equal(mock.state.subscriptions.has(oldId), false, 'the subscription at the old address is gone');
 	await waHooks.create.call(moved);
@@ -554,7 +521,7 @@ test('WhatsApp: a correctly signed message starts the workflow with readable fie
 	const { context } = webhookContext({
 		credentials,
 		staticData,
-		params: { events: ['message.inbound'], channel: { mode: 'list', value: '' }, simplify: true },
+		params: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { mode: 'list', value: '' }, simplify: true },
 		body: event,
 		headers: { 'x-webhook-signature': signature, 'x-webhook-event': 'message.inbound' },
 		rawBody,
@@ -577,7 +544,7 @@ test('WhatsApp: a wrong or missing signature is refused with 401', async () => {
 		const { context, res } = webhookContext({
 			credentials,
 			staticData,
-			params: { events: ['message.inbound'], channel: { mode: 'list', value: '' }, simplify: true },
+			params: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { mode: 'list', value: '' }, simplify: true },
 			body: event,
 			headers: { 'x-webhook-signature': signature },
 			rawBody: Buffer.from(JSON.stringify(event)),
@@ -595,7 +562,7 @@ test('WhatsApp: events not chosen, and other channels, are acknowledged but igno
 	let { context, res } = webhookContext({
 		credentials,
 		staticData,
-		params: { events: ['message.inbound'], channel: { mode: 'list', value: '' }, simplify: true },
+		params: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { mode: 'list', value: '' }, simplify: true },
 		body: status,
 		headers: { 'x-webhook-signature': signature },
 		rawBody,
@@ -608,7 +575,7 @@ test('WhatsApp: events not chosen, and other channels, are acknowledged but igno
 	({ context, res } = webhookContext({
 		credentials,
 		staticData,
-		params: { events: ['message.inbound'], channel: { mode: 'list', value: 'ch-1' }, simplify: true },
+		params: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { mode: 'list', value: 'ch-1' }, simplify: true },
 		body: otherChannel,
 		headers: { 'x-webhook-signature': signature },
 		rawBody,
@@ -632,7 +599,7 @@ test('WhatsApp: also reads a bare payload, a base64 signature, and an unnamed ev
 	const { context } = webhookContext({
 		credentials,
 		staticData,
-		params: { events: ['message.inbound'], channel: { mode: 'list', value: 'ch-1' }, simplify: true },
+		params: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { mode: 'list', value: 'ch-1' }, simplify: true },
 		body: bare,
 		headers: { 'x-webhook-signature': base64 },
 		rawBody,
@@ -649,7 +616,7 @@ test('WhatsApp: an event with no number on it still reaches a channel-filtered t
 	const { context } = webhookContext({
 		credentials,
 		staticData,
-		params: { events: ['message.inbound'], channel: { mode: 'list', value: 'ch-1' }, simplify: true },
+		params: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { mode: 'list', value: 'ch-1' }, simplify: true },
 		body: event,
 		headers: { 'x-webhook-signature': signature },
 		rawBody,
@@ -666,7 +633,7 @@ test('WhatsApp: every event that starts nothing says why in the log', async () =
 		webhookContext({
 			credentials,
 			staticData,
-			params: { events: ['message.inbound'], channel: { mode: 'list', value: '' }, simplify: true },
+			params: { source: 'whatsApp', whatsAppEvents: ['message.inbound'], channel: { mode: 'list', value: '' }, simplify: true },
 			body: event,
 			headers: { 'x-webhook-signature': 'deadbeef' },
 			rawBody: Buffer.from(JSON.stringify(event)),
@@ -677,7 +644,7 @@ test('WhatsApp: every event that starts nothing says why in the log', async () =
 		webhookContext({
 			credentials,
 			staticData,
-			params: { events: ['message.status'], channel: { mode: 'list', value: '' }, simplify: true },
+			params: { source: 'whatsApp', whatsAppEvents: ['message.status'], channel: { mode: 'list', value: '' }, simplify: true },
 			body: event,
 			headers: { 'x-webhook-signature': signature },
 			rawBody,
@@ -696,7 +663,7 @@ test('WhatsApp: status updates, simplified and raw', async () => {
 		webhookContext({
 			credentials,
 			staticData,
-			params: { events: ['message.status'], channel: { mode: 'list', value: 'ch-1' }, simplify },
+			params: { source: 'whatsApp', whatsAppEvents: ['message.status'], channel: { mode: 'list', value: 'ch-1' }, simplify },
 			body: status,
 			headers: { 'x-webhook-signature': signature },
 			rawBody,
