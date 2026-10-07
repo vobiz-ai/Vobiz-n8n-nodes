@@ -151,6 +151,23 @@ test("A sub-account's own credential is refused before anything is sent", async 
 	assert.equal(mock.state.requests.length, 0);
 });
 
+test("Only the main account can delete a sub-account: another sub-account's credential, or its own, is refused", async () => {
+	// Another sub-account, the same one typed in lowercase with spaces, and the sub-account itself.
+	for (const authId of ['SA_SIBLING01', ' sa_sibling01 ', 'SA_SEED0001']) {
+		await assert.rejects(
+			run(subAccount('delete', { subAccount: id('SA_SEED0001') }), { ...credentials, authId }),
+			/managed with the main account's credential/,
+		);
+	}
+	// Delete's "From list" can't list them either.
+	await assert.rejects(
+		node.methods.listSearch.searchSubAccounts.call(loadOptionsContext({ credentials: { ...credentials, authId: 'SA_SIBLING01' } })),
+		/managed with the main account's credential/,
+	);
+	assert.equal(mock.state.requests.length, 0, 'nothing was sent to Vobiz');
+	assert.ok(mock.state.subAccounts.has('SA_SEED0001'), 'the sub-account is still there');
+});
+
 test('A sub-account of another main account gets a "not yours" message, not "bad Auth Token"', async () => {
 	await assert.rejects(run(subAccount('get', { subAccount: id(FOREIGN_SUB_ACCOUNT) })), /does not belong to the account in this credential/);
 	await assert.rejects(run(subAccount('getKycStatus', { subAccount: id(FOREIGN_SUB_ACCOUNT) })), /does not belong/);
