@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 - 2026-10-07
+## 0.3.0 - 2026-10-08
 
 One trigger node instead of four, as n8n's review of verified packages asks: one action node and one trigger node. Nothing was taken away. See [Upgrading from 0.2](README.md#upgrading-from-02).
 
