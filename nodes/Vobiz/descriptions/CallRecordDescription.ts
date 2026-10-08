@@ -110,7 +110,7 @@ export const callRecordFields: INodeProperties[] = [
 		required: true,
 		placeholder: 'e.g. 5a9fd4a0-3d4c-11ef-bef9-0242ac110005',
 		description:
-			'The ID of the call. Make a Call returns it as call_uuid, and the Vobiz Trigger as uuid.',
+			'The ID of the call. Make a Call and the Vobiz Trigger return it as call_uuid.',
 		displayOptions: show(['get']),
 	},
 	{

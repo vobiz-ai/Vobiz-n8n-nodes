@@ -72,7 +72,7 @@ export const callFields: INodeProperties[] = [
 		required: true,
 		placeholder: 'e.g. https://n8n.example.com/webhook/1a2b3c/call-answered',
 		description:
-			'Where Vobiz asks what to do once the call is answered. Paste the Production URL of a Vobiz Call Answered Trigger (it contains /webhook/, not /webhook-test/), or any address that returns Vobiz XML.',
+			'Where Vobiz asks what to do once the call is answered. Paste the Production URL of a Vobiz Trigger (Source: Calls) (it contains /webhook/, not /webhook-test/), or any address that returns Vobiz XML.',
 		displayOptions: showForMake,
 	},
 	{
@@ -83,7 +83,7 @@ export const callFields: INodeProperties[] = [
 		default: '',
 		placeholder: 'e.g. Hi Asha, your appointment is tomorrow at 10 am.',
 		description:
-			'What to say when the call is answered. Works when the Answer URL is a Vobiz Call Answered Trigger. Leave empty to use the message set on the trigger, or, with Connect To, to say nothing.',
+			'What to say when the call is answered. Works when the Answer URL is a Vobiz Trigger (Source: Calls). Leave empty to use the message set on the trigger, or, with Connect To, to say nothing.',
 		displayOptions: showForMake,
 	},
 	{
@@ -93,7 +93,7 @@ export const callFields: INodeProperties[] = [
 		default: '',
 		placeholder: 'e.g. +919876543210',
 		description:
-			'For a call between two people: once the person in To answers, connect them to this number. They hear the Message first, if you set one. Needs a Vobiz Call Answered Trigger as the Answer URL. Separate several numbers with commas: they all ring, and the first to answer is connected.',
+			'For a call between two people: once the person in To answers, connect them to this number. They hear the Message first, if you set one. Needs a Vobiz Trigger (Source: Calls) as the Answer URL. Separate several numbers with commas: they all ring, and the first to answer is connected.',
 		displayOptions: showForMake,
 	},
 	{
@@ -113,7 +113,7 @@ export const callFields: INodeProperties[] = [
 					{ name: 'POST', value: 'POST' },
 				],
 				default: 'POST',
-				description: 'How Vobiz calls the Answer URL. Keep POST for a Vobiz Call Answered Trigger.',
+				description: 'How Vobiz calls the Answer URL. Keep POST for a Vobiz Trigger (Source: Calls).',
 			},
 			{
 				displayName: 'Caller Name',
@@ -136,7 +136,7 @@ export const callFields: INodeProperties[] = [
 				type: 'string',
 				default: '',
 				description:
-					'An address Vobiz notifies when the call ends. Leave it empty when the Answer URL is a Vobiz Call Answered Trigger: that trigger is told automatically.',
+					'An address Vobiz notifies when the call ends. Leave it empty when the Answer URL is a Vobiz Trigger (Source: Calls): that trigger is told automatically.',
 			},
 			{
 				displayName: 'Ring Timeout (Seconds)',

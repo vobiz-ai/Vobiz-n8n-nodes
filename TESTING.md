@@ -72,12 +72,12 @@ Each workflow has a yellow note with its steps. The **Editor** / **Executions** 
 
 ## 4. The tests
 
-### Test 1: the n8n phone line (Vobiz Call Answered Trigger)
+### Test 1: the n8n phone line (Vobiz Trigger, Source: Calls)
 File: `1 - Phone line (answers calls).json`
 
 This gives n8n its own phone numbers: use numbers that show **not linked** in the Vobiz console. Numbers used by another setup, such as a CRM integration, are never touched. The trigger refuses any number that's already linked to something.
 
-1. Pick your credential in the trigger.
+1. Pick your credential in the trigger. **Source** is **Calls**.
 2. **Answer Incoming Calls On**: your n8n numbers (already set in the `local` copy). The list says which numbers are **not linked** and which are used by something else.
 3. **Trigger On**: **Call Answered** and **Call Ended** are both ticked.
 4. Close the panel (**✕**, top right), click **Publish** (top right), then **Publish** again in the **Publish workflow** box.
@@ -117,14 +117,15 @@ File: `2 - Make a call.json` again
 
 Then try once without answering the second phone: after about 30 seconds your mobile hears *"Sorry, nobody is available to take your call right now. Goodbye."*
 
-### Test 3: every call on the account (Vobiz Trigger)
+### Test 3: every call on the account (Schedule → Vobiz Get Many → Remove Duplicates)
 File: `3 - Every call on the account.json`
 
-This one watches every number, CRM numbers included, without changing anything about them. The price is a delay of up to a minute.
+This one watches every number, CRM numbers included, without changing anything about them. n8n's **Schedule Trigger** checks once a minute, so a call shows up within about a minute.
 
-1. Double-click the trigger and click **Fetch Test Event**. You see your most recent answered call: numbers, duration, cost.
-2. Click **Publish**, then make any call, answer it, and hang up.
-3. Within about a minute, open **Executions**. A new run holds that call.
+1. Pick your credential in **Recent Calls**.
+2. Click **Execute workflow**. **Recent Calls** and **Only New Calls** show your latest calls: numbers, duration, cost. The first run passes them all on.
+3. Click **Publish**, then make any call, answer it, and hang up.
+4. Within about a minute, open **Executions**. A new run holds just that call; runs with no new call pass nothing on.
 
 ### Test 4: call records (Vobiz → Call Record)
 File: `4 - Call records report.json`
@@ -155,7 +156,7 @@ This needs a WhatsApp channel on your Vobiz account.
 
 **Expected:** the message arrives on your phone. The node's output shows `status: pending`.
 
-### Test 7: WhatsApp auto-reply (Vobiz WhatsApp Trigger)
+### Test 7: WhatsApp auto-reply (Vobiz Trigger, Source: WhatsApp)
 File: `7 - WhatsApp auto-reply.json`
 
 1. Pick the same **Channel** in **Reply**.
@@ -181,11 +182,11 @@ Sub-accounts are made with the **main account's** credential (its Auth ID starts
 
 Optional, by hand: **Assign Number** and **Unassign Number**. Use only a number that has had **no calls in the last 15 days**. Vobiz keeps a recently used number with the sub-account for 15 days after its last call, and Unassign Number then says until when.
 
-### Test 9: sub-account KYC (Vobiz → Sub-Account → Start KYC, and the Vobiz KYC Trigger)
+### Test 9: sub-account KYC (Vobiz → Sub-Account → Start KYC, and the Vobiz Trigger with Source: Sub-Account KYC)
 File: `9 - Sub-account KYC.json`
 
-1. Pick the main account's credential in every Vobiz node and in **Vobiz KYC Trigger**.
-2. Click **Publish**. Open **Vobiz KYC Trigger**, copy its **Production URL**, and paste it into **Start KYC → Options → Webhook URL**.
+1. Pick the main account's credential in every Vobiz node and in **Vobiz Trigger (KYC)**.
+2. Click **Publish**. Open **Vobiz Trigger (KYC)**, copy its **Production URL**, and paste it into **Start KYC → Options → Webhook URL**.
 3. Check **Customer Email** on **Create Customer Sub-Account** (your own email).
 4. Click **Execute workflow**.
 
@@ -197,7 +198,7 @@ File: `9 - Sub-account KYC.json`
 
 Then clean up: open **Delete Test Sub-Account (run last)**, pick *n8n KYC test* from the list, and click **Execute step**.
 
-### Test 10: call menu, forwarding and voicemail (Vobiz Call Answered Trigger, Then)
+### Test 10: call menu, forwarding and voicemail (Vobiz Trigger, Source: Calls, Then)
 File: `10 - Call menu (forward, voicemail).json`
 
 1. **Unpublish test 1 first.** Both answer calls on the same numbers, and a number can only belong to one trigger.

@@ -1,6 +1,6 @@
 {
 	"name": "@vobiz-ai/n8n-nodes-vobiz",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "n8n nodes for Vobiz: make calls, answer them with menus, forwarding and voicemail, get call records and recordings, send WhatsApp messages, manage sub-accounts and their KYC, and start workflows from calls, WhatsApp messages and KYC results.",
 	"license": "MIT",
 	"homepage": "https://www.vobiz.ai",
@@ -56,10 +56,7 @@
 		],
 		"nodes": [
 			"dist/nodes/Vobiz/Vobiz.node.js",
-			"dist/nodes/VobizTrigger/VobizTrigger.node.js",
-			"dist/nodes/VobizCallAnsweredTrigger/VobizCallAnsweredTrigger.node.js",
-			"dist/nodes/VobizWhatsAppTrigger/VobizWhatsAppTrigger.node.js",
-			"dist/nodes/VobizKycTrigger/VobizKycTrigger.node.js"
+			"dist/nodes/VobizTrigger/VobizTrigger.node.js"
 		]
 	},
 	"devDependencies": {

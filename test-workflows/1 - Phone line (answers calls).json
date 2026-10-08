@@ -3,16 +3,17 @@
   "nodes": [
     {
       "id": "00000000-0000-4000-8000-000000000001",
-      "name": "Vobiz Call Answered Trigger",
-      "type": "CUSTOM.vobizCallAnsweredTrigger",
-      "typeVersion": 1,
+      "name": "Vobiz Trigger (Calls)",
+      "type": "CUSTOM.vobizTrigger",
+      "typeVersion": 2,
       "position": [
         0,
         0
       ],
       "webhookId": "4a1f6b2c-0d3e-4f5a-9b8c-1d2e3f4a5b6c",
       "parameters": {
-        "events": [
+        "source": "calls",
+        "callEvents": [
           "callAnswered",
           "callEnded"
         ],

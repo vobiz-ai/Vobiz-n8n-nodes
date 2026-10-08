@@ -60,7 +60,7 @@ test('Make a Call sends what Vobiz needs, and returns the call UUID', async () =
 	assert.deepEqual(item.pairedItem, { item: 0 });
 });
 
-test('Make a Call to a Call Answered Trigger also tells that trigger when the call ends', async () => {
+test('Make a Call to a Vobiz Trigger (Source: Calls) also tells that trigger when the call ends', async () => {
 	await run(makeCallParams({ from: { __rl: true, mode: 'number', value: '+91 80 1234 5678' }, message: 'Hi there' }));
 	const request = lastRequest('POST', '/Call/');
 	assert.deepEqual(Object.keys(request.body).sort(), ['answer_method', 'answer_url', 'from', 'hangup_method', 'hangup_url', 'to']);
@@ -333,7 +333,7 @@ test('Make a Call refuses Connect To without a trigger, or with something that i
 	mock.state.requests.length = 0;
 	await assert.rejects(
 		run(makeCallParams({ answerUrl: 'https://example.com/answer.xml', connectTo: '+919845000009' })),
-		/Connect To needs a Vobiz Call Answered Trigger/,
+		/Connect To needs a Vobiz Trigger \(Source: Calls\)/,
 	);
 	// "<" is Vobiz's bulk-dial separator: it must never reach a Dial.
 	await assert.rejects(run(makeCallParams({ connectTo: '+919845000009<+919845000010' })), /not a phone number/);

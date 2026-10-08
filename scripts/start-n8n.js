@@ -73,7 +73,10 @@ function installHint() {
 /** Starts a quick tunnel and resolves with its https://….trycloudflare.com address. */
 function openTunnel(cloudflared) {
 	return new Promise((resolve, reject) => {
-		const tunnel = spawn(cloudflared, ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`], {
+		// HTTP/2 (TCP), not the default QUIC (UDP): a QUIC quick tunnel that loses its connection for
+		// a moment may never re-register, and Cloudflare then deletes its address.
+		const args = ['tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', `http://localhost:${PORT}`];
+		const tunnel = spawn(cloudflared, args, {
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 		const log = fs.createWriteStream(path.join(USER_FOLDER, 'tunnel.log'));

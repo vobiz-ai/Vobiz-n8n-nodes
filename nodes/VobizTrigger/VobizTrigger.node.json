@@ -1,16 +1,29 @@
 {
 	"node": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
-	"nodeVersion": "1.0",
+	"nodeVersion": "2.0",
 	"codexVersion": "1.0",
 	"categories": [
 		"Communication"
 	],
 	"alias": [
+		"call answered",
 		"call ended",
-		"call",
+		"answer url",
+		"call script",
 		"phone",
-		"recording",
-		"cdr"
+		"voice",
+		"ivr",
+		"menu",
+		"call forwarding",
+		"voicemail",
+		"whatsapp",
+		"message",
+		"chat",
+		"kyc",
+		"sub-account",
+		"subaccount",
+		"verification",
+		"onboarding"
 	],
 	"resources": {
 		"credentialDocumentation": [
@@ -20,7 +33,7 @@
 		],
 		"primaryDocumentation": [
 			{
-				"url": "https://github.com/vobiz-ai/Vobiz-n8n-nodes#readme"
+				"url": "https://github.com/vobiz-ai/Vobiz-n8n-nodes#vobiz-trigger"
 			}
 		]
 	}

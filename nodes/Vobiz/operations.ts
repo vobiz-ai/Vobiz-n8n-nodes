@@ -37,7 +37,7 @@ function answerUrlWithMessage(this: IExecuteFunctions, raw: string, message: str
 		throw new NodeOperationError(this.getNode(), 'The Answer URL is not a web address', {
 			itemIndex,
 			description:
-				'Paste the full address, starting with https://. For a Vobiz Call Answered Trigger, copy its Production URL.',
+				'Paste the full address, starting with https://. For a Vobiz Trigger (Source: Calls), copy its Production URL.',
 		});
 	}
 	if (url.protocol !== 'https:' && url.protocol !== 'http:') {
@@ -54,7 +54,7 @@ function answerUrlWithMessage(this: IExecuteFunctions, raw: string, message: str
 	return url.toString();
 }
 
-/** Whether an address is a Vobiz Call Answered Trigger (its path ends in /call-answered). */
+/** Whether an address is a Vobiz Trigger (Source: Calls) (its path ends in /call-answered). */
 export function isCallAnsweredTriggerUrl(address: string): boolean {
 	try {
 		return new URL(address).pathname.replace(/\/+$/, '').endsWith(`/${CALL_ANSWERED_PATH}`);
@@ -87,10 +87,10 @@ function connectNumbers(this: IExecuteFunctions, raw: string, answerUrl: string,
 		});
 	}
 	if (!isCallAnsweredTriggerUrl(answerUrl)) {
-		throw new NodeOperationError(this.getNode(), 'Connect To needs a Vobiz Call Answered Trigger as the Answer URL', {
+		throw new NodeOperationError(this.getNode(), 'Connect To needs a Vobiz Trigger (Source: Calls) as the Answer URL', {
 			itemIndex: i,
 			description:
-				'The trigger is what connects the two people. Paste the Production URL of a Vobiz Call Answered Trigger into Answer URL.',
+				'The trigger is what connects the two people. Paste the Production URL of a Vobiz Trigger (Source: Calls) into Answer URL.',
 		});
 	}
 	return numbers;

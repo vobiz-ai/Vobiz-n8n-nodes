@@ -5,9 +5,9 @@ const { createHmac } = require('node:crypto');
 
 const { createMockVobiz, AUTH_ID, AUTH_TOKEN } = require('./mock-vobiz');
 const { hookContext, webhookContext, logger } = require('./harness');
-const { VobizCallAnsweredTrigger } = require('../dist/nodes/VobizCallAnsweredTrigger/VobizCallAnsweredTrigger.node.js');
+const { VobizTrigger } = require('../dist/nodes/VobizTrigger/VobizTrigger.node.js');
 
-const trigger = new VobizCallAnsweredTrigger();
+const trigger = new VobizTrigger();
 const URL_BASE = 'https://n8n.example.com/webhook/0f1e2d3c/call-answered';
 let mock;
 let credentials;
@@ -30,7 +30,7 @@ function vobizSigned(nonce = '12345678901234567890') {
 }
 
 const base = {
-	events: ['callAnswered'],
+	callEvents: ['callAnswered'],
 	message: 'Thanks for calling Acme.',
 	voice: 'WOMAN',
 	language: 'en-IN',
@@ -86,7 +86,7 @@ test('Forward: the message, then Dial to the number with the call\'s own Vobiz n
 });
 
 test('Forward: the result decides what the caller hears next, and can start the workflow', async () => {
-	const params = { then: 'forward', forwardTo: '+919845000001', events: ['forwardFinished'] };
+	const params = { then: 'forward', forwardTo: '+919845000001', callEvents: ['forwardFinished'] };
 	const answered = await deliver({ params, query: step('dial'), body: answeredBody({ Event: 'DialAction', DialStatus: 'completed', DialBLegUUID: 'leg-2' }) });
 	assert.equal(answered.xml, '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup/>\n</Response>');
 	const run = answered.result.workflowData[0][0].json;
@@ -100,7 +100,7 @@ test('Forward: the result decides what the caller hears next, and can start the 
 	assert.equal(busy.result.workflowData[0][0].json.forwarded_call_uuid, null);
 
 	const toVoicemail = await deliver({
-		params: { ...params, ifNoAnswer: 'voicemail', events: [] },
+		params: { ...params, ifNoAnswer: 'voicemail', callEvents: [] },
 		query: step('dial'),
 		body: answeredBody({ Event: 'DialAction', DialStatus: 'no-answer' }),
 	});
@@ -135,7 +135,7 @@ const menu = {
 			{ key: '3', action: 'voicemail', reply: 'Please leave a message after the beep.' },
 		],
 	},
-	events: ['keyPressed'],
+	callEvents: ['keyPressed'],
 };
 
 test('Menu: the message plays inside Gather, and no key at all says goodbye', async () => {
@@ -224,7 +224,7 @@ test('Voicemail: the prompt, then Record with both Vobiz addresses, then thanks'
 });
 
 test('Voicemail: the first recording event gets an empty Response; the finished one starts the workflow', async () => {
-	const params = { then: 'voicemail', events: ['voicemailRecorded'] };
+	const params = { then: 'voicemail', callEvents: ['voicemailRecorded'] };
 	const started = await deliver({ params, query: step('record'), body: answeredBody({ RecordingID: 'rec-9' }) });
 	assert.equal(started.xml, '<?xml version="1.0" encoding="UTF-8"?>\n<Response></Response>');
 	assert.equal(started.result.workflowData, undefined);

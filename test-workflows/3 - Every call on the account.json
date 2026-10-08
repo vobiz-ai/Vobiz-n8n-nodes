@@ -3,43 +3,97 @@
   "nodes": [
     {
       "id": "00000000-0000-4000-8000-000000000006",
-      "name": "Vobiz Trigger",
-      "type": "CUSTOM.vobizTrigger",
-      "typeVersion": 1,
+      "name": "Every Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
       "position": [
         0,
         0
       ],
       "parameters": {
-        "event": "callEnded",
-        "pollTimes": {
-          "item": [
+        "rule": {
+          "interval": [
             {
-              "mode": "everyMinute"
+              "field": "minutes",
+              "minutesInterval": 1
             }
           ]
-        },
-        "filters": {},
-        "simplify": true
+        }
       }
     },
     {
       "id": "00000000-0000-4000-8000-000000000007",
-      "name": "Note 7",
+      "name": "Recent Calls",
+      "type": "CUSTOM.vobiz",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "resource": "callRecord",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 20,
+        "filters": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "name": "Only New Calls",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "logic": "removeItemsWithAlreadySeenKeyValues",
+        "dedupeValue": "={{ $json.uuid }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "name": "Note 9",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
         -40,
-        -360
+        -380
       ],
       "parameters": {
-        "content": "## Test 3: every call on the account\nIt watches every number on the account, including numbers used by other setups such as a CRM integration, without changing them. It checks once a minute.\n1. Pick your credential.\n2. Click **Fetch Test Event**: you see your latest answered call.\n3. **Publish**, make any call, and within about a minute a new run appears under **Executions**.",
+        "content": "## Test 3: every call on the account\nn8n's **Schedule Trigger** asks Vobiz for the latest calls once a minute; **Remove Duplicates** passes on only calls it has not seen before. It watches every number on the account, including numbers used by other setups such as a CRM integration, without changing them.\n1. Pick your credential in **Recent Calls**.\n2. Click **Execute workflow**: you see your latest calls (the first run passes them all on).\n3. **Publish**, make any call, and within about a minute a new run appears under **Executions** with just that call.",
         "width": 460,
         "height": 280
       }
     }
   ],
-  "connections": {},
+  "connections": {
+    "Every Minute": {
+      "main": [
+        [
+          {
+            "node": "Recent Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent Calls": {
+      "main": [
+        [
+          {
+            "node": "Only New Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
   "settings": {
     "executionOrder": "v1"
   }

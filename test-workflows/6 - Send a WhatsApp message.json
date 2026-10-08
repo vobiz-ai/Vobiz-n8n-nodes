@@ -2,7 +2,7 @@
   "name": "Vobiz test 6 - Send a WhatsApp message",
   "nodes": [
     {
-      "id": "00000000-0000-4000-8000-000000000016",
+      "id": "00000000-0000-4000-8000-000000000018",
       "name": "Click to test",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "00000000-0000-4000-8000-000000000017",
+      "id": "00000000-0000-4000-8000-000000000019",
       "name": "Send WhatsApp",
       "type": "CUSTOM.vobiz",
       "typeVersion": 1,
@@ -35,8 +35,8 @@
       }
     },
     {
-      "id": "00000000-0000-4000-8000-000000000018",
-      "name": "Note 18",
+      "id": "00000000-0000-4000-8000-000000000020",
+      "name": "Note 20",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
