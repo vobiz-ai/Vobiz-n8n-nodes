@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 - 2026-10-13
+
+- **Vobiz Trigger:** its codex file (`VobizTrigger.node.json`) now says `"nodeVersion": "1.0"`, as n8n's codex format requires; 0.3.0 said `"2.0"`. That field describes the codex file's format, not the node, so nothing changes for workflows: the trigger is still version 2, with the same settings, output and Production URLs. Asked for by n8n's review of verified packages.
+
 ## 0.3.0 - 2026-10-08
 
 One trigger node instead of four, as n8n's review of verified packages asks: one action node and one trigger node. Nothing was taken away. See [Upgrading from 0.2](README.md#upgrading-from-02).
