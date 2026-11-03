@@ -1,0 +1,219 @@
+{
+  "name": "Vobiz: Log every call to Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "f20a5d95-fac3-4333-a7d1-7e11d0333071",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callRecord",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 100,
+        "filters": {},
+        "simplify": true
+      },
+      "id": "1533a98e-af6d-41e7-a3c3-7048a86232fd",
+      "name": "Get recent calls",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "logic": "removeItemsWithAlreadySeenKeyValues",
+        "dedupeValue": "={{ $json.uuid }}",
+        "options": {}
+      },
+      "id": "2f0fdce4-86ba-45d3-a184-cb6980f4f805",
+      "name": "Only new calls",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b6db6794-fd3b-4c19-add0-83e66da67f65",
+              "name": "Date",
+              "value": "={{ $json.start_time }}",
+              "type": "string"
+            },
+            {
+              "id": "007c14f4-18be-49fe-a4cb-4f39c910d16c",
+              "name": "Direction",
+              "value": "={{ $json.call_direction }}",
+              "type": "string"
+            },
+            {
+              "id": "f354473a-e452-4aad-a24d-80eb9618b9d3",
+              "name": "From",
+              "value": "={{ $json.caller_id_number }}",
+              "type": "string"
+            },
+            {
+              "id": "cd0def51-8b99-43f5-a100-34a899d3c8f9",
+              "name": "To",
+              "value": "={{ $json.destination_number }}",
+              "type": "string"
+            },
+            {
+              "id": "32f6e601-6c11-4dcc-a545-90410814e3bb",
+              "name": "Duration (s)",
+              "value": "={{ $json.duration }}",
+              "type": "string"
+            },
+            {
+              "id": "3537fbfe-c552-4d16-ad31-d465fcf46a13",
+              "name": "Answered",
+              "value": "={{ $json.answered ? 'Yes' : 'No' }}",
+              "type": "string"
+            },
+            {
+              "id": "ed0b6ea8-c777-41b7-a42b-3514011c2275",
+              "name": "Hangup cause",
+              "value": "={{ $json.hangup_cause_name }}",
+              "type": "string"
+            },
+            {
+              "id": "55e1a4da-c398-450d-a9e6-9d467c67c27b",
+              "name": "Cost",
+              "value": "={{ $json.cost }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f14abd02-44ee-4baa-ac2c-684192790b9e",
+      "name": "Choose the columns",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "b4d1c1a0-af41-4967-a7f4-1a1699031e39",
+      "name": "Add to the sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Log every call to Google Sheets\nGive your sheet the header row: **Date, Direction, From, To, Duration (s), Answered, Hangup cause, Cost**. The first run adds every recent call; after that, only new ones.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Add to the sheet**, connect Google Sheets and choose your sheet.\n3. **Publish** the workflow.",
+        "height": 380,
+        "width": 420
+      },
+      "id": "862ca053-6beb-4ce2-aae2-a336d681f2b6",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -160
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get recent calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get recent calls": {
+      "main": [
+        [
+          {
+            "node": "Only new calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only new calls": {
+      "main": [
+        [
+          {
+            "node": "Choose the columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose the columns": {
+      "main": [
+        [
+          {
+            "node": "Add to the sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "name": "Vobiz: Back up call recordings to Google Drive",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "3f380ae3-9604-4412-ad04-05ae697ea1b7",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "recording",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 50,
+        "filters": {}
+      },
+      "id": "8063770f-ec2f-458f-ac6f-ab4ddbf669d0",
+      "name": "Get recent recordings",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "logic": "removeItemsWithAlreadySeenKeyValues",
+        "dedupeValue": "={{ $json.recording_id }}",
+        "options": {}
+      },
+      "id": "a7381da6-318c-409c-a288-243c702edc13",
+      "name": "Only new recordings",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "recording",
+        "operation": "download",
+        "recordingId": "={{ $json.recording_id }}",
+        "binaryPropertyName": "data"
+      },
+      "id": "d6c43ff3-fddc-4064-a580-81261d278afc",
+      "name": "Download the recording",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $binary.data.fileName }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "id": "ece4d38d-7154-417f-a7f5-09fba13f07da",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Back up call recordings to Google Drive\nRecordings are private on Vobiz, so this downloads each new one with your credential and saves it to Drive.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Save to Google Drive**, connect Google Drive and choose a folder.\n3. **Publish** the workflow.",
+        "height": 360,
+        "width": 420
+      },
+      "id": "aec05f7b-73b2-4876-afae-19fa9b4bcb3a",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -140
+      ]
+    }
+  ],
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "Get recent recordings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get recent recordings": {
+      "main": [
+        [
+          {
+            "node": "Only new recordings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only new recordings": {
+      "main": [
+        [
+          {
+            "node": "Download the recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download the recording": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

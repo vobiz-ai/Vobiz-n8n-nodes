@@ -1,0 +1,111 @@
+{
+  "name": "Vobiz: Voicemail to email",
+  "nodes": [
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "voicemailRecorded"
+        ],
+        "message": "Sorry we missed your call. Please leave a message after the beep.",
+        "then": "voicemail"
+      },
+      "id": "530a6ab3-d95e-494e-a2cd-753046485fab",
+      "name": "Answer and record",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "recording",
+        "operation": "download",
+        "recordingId": "={{ $json.recording_id }}",
+        "binaryPropertyName": "data"
+      },
+      "id": "cd08ab68-8dfe-4f46-a872-dbe1b49a003a",
+      "name": "Download the voicemail",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "you@example.com",
+        "subject": "=New voicemail from {{ $('Answer and record').item.json.from }}",
+        "emailType": "text",
+        "message": "=You have a new voicemail from {{ $('Answer and record').item.json.from }} ({{ $('Answer and record').item.json.duration }} seconds). The recording is attached.",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data"
+              }
+            ]
+          }
+        }
+      },
+      "id": "679037be-733f-4dd5-a08e-f4c49f5c1d44",
+      "name": "Email the voicemail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Voicemail to email\nCallers hear your message and leave a voicemail. You get an email with the recording attached.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Answer Incoming Calls On Names or IDs**, choose the Vobiz number to answer.\n3. In **Email the voicemail**, connect Gmail and put your address in **To**.\n4. **Publish** the workflow.",
+        "height": 380,
+        "width": 420
+      },
+      "id": "fe3fccd4-385f-454d-a6ca-ffabbb27916a",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -140
+      ]
+    }
+  ],
+  "connections": {
+    "Answer and record": {
+      "main": [
+        [
+          {
+            "node": "Download the voicemail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download the voicemail": {
+      "main": [
+        [
+          {
+            "node": "Email the voicemail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

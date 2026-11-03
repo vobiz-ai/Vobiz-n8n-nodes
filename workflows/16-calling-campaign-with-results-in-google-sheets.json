@@ -1,0 +1,291 @@
+{
+  "name": "Vobiz: Calling campaign with results in Google Sheets",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "3862ba91-35f9-4d67-a36c-158ac7cfc833",
+      "name": "Start the campaign",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sheet1"
+        },
+        "options": {}
+      },
+      "id": "676735a7-4daf-4f84-a824-3f15207a3a24",
+      "name": "Read the call list",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a7b40140-8761-4362-a4a7-0f43d7b27f7b",
+      "name": "One call at a time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "={{ $json.Phone }}",
+        "answerUrl": "Paste the Production URL of the \"Answer the call\" node here",
+        "message": "=Hi {{ $json.Name }}, this is a quick message from our team. We have a new offer for you. Visit our website to learn more. Goodbye.",
+        "options": {
+          "hangUpOnVoicemail": true
+        }
+      },
+      "id": "7fa13440-46b4-4716-a17f-c7a9c525f0be",
+      "name": "Call the contact",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        720,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "id": "e09d1105-4f5a-4458-a3fb-574d8167b50b",
+      "name": "Wait 20 seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callEnded"
+        ],
+        "message": "Hello! This is a call from Vobiz. Thank you, goodbye.",
+        "then": "hangup"
+      },
+      "id": "fd9baff6-0f44-4b4d-a452-2675450756a8",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6ef6965b-38d7-4d56-ae11-8102508bcb9c",
+              "name": "Phone",
+              "value": "={{ $json.to }}",
+              "type": "string"
+            },
+            {
+              "id": "0d0df7f8-f1ea-4f57-a424-c903167b654d",
+              "name": "Answered",
+              "value": "={{ $json.answered ? 'Yes' : 'No' }}",
+              "type": "string"
+            },
+            {
+              "id": "9963312c-cf59-4021-a4b5-fb8ae3f790a3",
+              "name": "Duration (s)",
+              "value": "={{ $json.duration }}",
+              "type": "string"
+            },
+            {
+              "id": "f104e95b-6917-4812-a5a9-1ab373bfd70c",
+              "name": "Hangup cause",
+              "value": "={{ $json.hangup_cause }}",
+              "type": "string"
+            },
+            {
+              "id": "c565b5aa-d907-46c8-a18d-fb827dc887c4",
+              "name": "Ended at",
+              "value": "={{ $json.ended_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aa72e848-83ca-4b4a-aae2-ed3b133aa3a9",
+      "name": "Result columns",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "61f6538e-0299-4664-a1c0-9b6884145e43",
+      "name": "Add to the results sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Calling campaign with results\nThe call list needs the columns **Name** and **Phone** (with the country code). The results sheet needs **Phone, Answered, Duration (s), Hangup cause, Ended at**. Calls go out one at a time, 20 seconds apart.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Connect Google Sheets in **Read the call list** and **Add to the results sheet**, and choose the sheets.\n3. Open **Answer the call**, then **Webhook URLs** → **Production URL**, and copy it into **Answer URL** on the node that makes the call.\n4. In the node that makes the call, choose your **From Number**.\n5. **Publish** the workflow.\n6. Click **Execute workflow** to start.\n\n**Calls are real and billed to your Vobiz account.** Test with your own number first.",
+        "height": 640,
+        "width": 420
+      },
+      "id": "54b39d26-5b23-4aa9-a570-18efe8b7135d",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -240
+      ]
+    }
+  ],
+  "connections": {
+    "Start the campaign": {
+      "main": [
+        [
+          {
+            "node": "Read the call list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the call list": {
+      "main": [
+        [
+          {
+            "node": "One call at a time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One call at a time": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Call the contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call the contact": {
+      "main": [
+        [
+          {
+            "node": "Wait 20 seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 20 seconds": {
+      "main": [
+        [
+          {
+            "node": "One call at a time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer the call": {
+      "main": [
+        [
+          {
+            "node": "Result columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Result columns": {
+      "main": [
+        [
+          {
+            "node": "Add to the results sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

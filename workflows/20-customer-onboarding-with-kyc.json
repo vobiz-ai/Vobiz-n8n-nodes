@@ -1,0 +1,206 @@
+{
+  "name": "Vobiz: Customer onboarding with sub-account and KYC",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Open an account",
+        "formDescription": "We will email you a link to verify your business.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Company name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4d8f17f2-7456-40ec-a849-e4b641ac14b4",
+      "name": "Customer sign-up form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "subAccount",
+        "operation": "create",
+        "name": "={{ $json[\"Company name\"] }}",
+        "kycMode": "customer_use",
+        "customerEmail": "={{ $json.Email }}",
+        "additionalFields": {
+          "businessType": "private_limited"
+        }
+      },
+      "id": "e39ea1ec-0841-4e6a-a56e-d1ce1f55a99c",
+      "name": "Create the sub-account",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "subAccount",
+        "operation": "startKyc",
+        "subAccount": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.auth_id }}"
+        },
+        "sendLinkBy": "email",
+        "customerEmail": "={{ $('Customer sign-up form').item.json.Email }}",
+        "kycOptions": {
+          "webhookUrl": ""
+        }
+      },
+      "id": "b9ef3816-9b0d-4525-a9f7-c04c757fc0f8",
+      "name": "Email the KYC link",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "kyc",
+        "kycEvents": [
+          "kyc.completed"
+        ],
+        "subAccount": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "requireSignature": true,
+        "simplify": true
+      },
+      "id": "ef56667b-dce6-4965-a3ee-4948a1a45e61",
+      "name": "KYC completed",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "subAccount",
+        "operation": "assignNumber",
+        "subAccount": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.sub_account_id }}"
+        },
+        "number": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "77f2faf1-a413-42d3-a508-b3fcc4220ce0",
+      "name": "Give them a number",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "you@example.com",
+        "subject": "=KYC passed for sub-account {{ $('KYC completed').item.json.sub_account_id }}",
+        "emailType": "text",
+        "message": "=Sub-account {{ $('KYC completed').item.json.sub_account_id }} passed KYC and has been given a number.",
+        "options": {}
+      },
+      "id": "09df50f6-cb63-4a6c-a459-fa90f74de21d",
+      "name": "Tell your team",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Customer onboarding with KYC\nCreates a customer sub-account from the form and emails them the Vobiz KYC page. When they pass, it gives them one of your numbers and emails your team. Use your **main account** credential (`MA_…`).\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Open **KYC completed** and copy its **Production URL** into **Email the KYC link** → **Options** → **Webhook URL**.\n3. Pick the business type in **Create the sub-account**, and the number to give in **Give them a number**.\n4. In **Tell your team**, connect Gmail and put your address in **To**.\n5. **Publish** the workflow.\n6. Share the **Production URL** of **Customer sign-up form**.",
+        "height": 600,
+        "width": 420
+      },
+      "id": "3f0b0452-4063-4715-ac12-67337dd8be80",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -240
+      ]
+    }
+  ],
+  "connections": {
+    "Customer sign-up form": {
+      "main": [
+        [
+          {
+            "node": "Create the sub-account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create the sub-account": {
+      "main": [
+        [
+          {
+            "node": "Email the KYC link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KYC completed": {
+      "main": [
+        [
+          {
+            "node": "Give them a number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Give them a number": {
+      "main": [
+        [
+          {
+            "node": "Tell your team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

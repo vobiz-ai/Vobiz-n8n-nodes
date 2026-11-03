@@ -1,0 +1,105 @@
+{
+  "name": "Vobiz: Daily call report to Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 19
+            }
+          ]
+        }
+      },
+      "id": "45ad5f3d-375c-45aa-a9d9-4090dc98f8f4",
+      "name": "Every day at 7 pm",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callRecord",
+        "operation": "getSummary",
+        "filters": {
+          "startDate": "={{ $today.toISODate() }}",
+          "endDate": "={{ $today.toISODate() }}"
+        }
+      },
+      "id": "97173755-7e9b-49c5-a04f-f45b8961d534",
+      "name": "Get today's totals",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "text": "=Calls today ({{ $json.start_date }})\nTotal: {{ $json.totalCalls }}\nAnswered: {{ $json.answeredCalls }} ({{ $json.answerRate }}%)\nTalk time: {{ Math.round(($json.total_billable_seconds || 0) / 60) }} min\nCost: {{ $json.total_cost }}",
+        "otherOptions": {}
+      },
+      "id": "97ac1808-f928-42ef-a761-899f576e8edc",
+      "name": "Post the report",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Daily call report to Slack\nAt 7 pm every day, posts today's totals from your Vobiz account.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Post the report**, connect Slack and choose a channel.\n3. **Publish** the workflow.",
+        "height": 340,
+        "width": 420
+      },
+      "id": "173c9580-ff43-4da7-a5dd-876693090799",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -140
+      ]
+    }
+  ],
+  "connections": {
+    "Every day at 7 pm": {
+      "main": [
+        [
+          {
+            "node": "Get today's totals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get today's totals": {
+      "main": [
+        [
+          {
+            "node": "Post the report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

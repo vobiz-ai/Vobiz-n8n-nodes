@@ -1,0 +1,52 @@
+{
+  "name": "Vobiz: Forward calls to your team",
+  "nodes": [
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callAnswered"
+        ],
+        "message": "Thanks for calling. Connecting you to our team now.",
+        "then": "forward",
+        "forwardTo": "+91XXXXXXXXXX, +91XXXXXXXXXX",
+        "ifNoAnswer": "voicemail",
+        "forwardOptions": {
+          "ringSeconds": 25
+        }
+      },
+      "id": "59c305ee-69ee-4b3c-ad0a-e0b9a8778254",
+      "name": "Answer and forward",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Forward calls to your team\nRings all the numbers in **Forward To** together; the first to answer gets the call. If nobody answers, the caller can leave a voicemail.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Answer Incoming Calls On Names or IDs**, choose the Vobiz number to answer.\n3. Replace the numbers in **Forward To** with your team's, with the country code.\n4. **Publish** the workflow.",
+        "height": 400,
+        "width": 420
+      },
+      "id": "19172b90-b86c-4052-a0b2-0c3fe92b0bc1",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -120
+      ]
+    }
+  ],
+  "connections": {},
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

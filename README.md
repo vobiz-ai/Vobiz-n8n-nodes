@@ -189,6 +189,8 @@ For new recordings, use **Vobiz → Recording → Get Many** instead, dedupe on 
 
 ## Example workflows
 
+
+Ready-to-import templates are in [`workflows/`](workflows/README.md).
 - **Appointment reminders:** Google Sheets or a schedule → *Vobiz: Make a Call* with a personalised message.
 - **Log every call:** Schedule → *Vobiz: Call Record → Get Many* → Remove Duplicates → Google Sheets or your CRM.
 - **Missed-call follow-up:** *Vobiz Trigger* (Calls; Trigger On: Call Ended) → If not answered → *Vobiz: Send* a WhatsApp template.

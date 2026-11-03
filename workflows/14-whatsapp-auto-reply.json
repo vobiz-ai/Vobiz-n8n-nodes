@@ -1,0 +1,81 @@
+{
+  "name": "Vobiz: WhatsApp auto-reply",
+  "nodes": [
+    {
+      "parameters": {
+        "source": "whatsApp",
+        "whatsAppEvents": [
+          "message.inbound"
+        ],
+        "channel": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "simplify": true
+      },
+      "id": "b14eb5cd-e470-4792-a5a3-df844cce8c93",
+      "name": "WhatsApp message received",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "whatsAppMessage",
+        "operation": "send",
+        "channel": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "={{ $json.from }}",
+        "messageType": "text",
+        "text": "=Hi {{ $json.name }}, thanks for your message! Our team will reply shortly."
+      },
+      "id": "a24d7cda-0919-4b06-a66e-d2867d307051",
+      "name": "Reply on WhatsApp",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## WhatsApp auto-reply\nReplies within WhatsApp's 24-hour window, so a plain text message is allowed.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Choose your WhatsApp **Channel** in both nodes.\n3. **Publish** the workflow.",
+        "height": 340,
+        "width": 420
+      },
+      "id": "380c475f-4280-47b7-a414-aa1d7791d633",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -120
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp message received": {
+      "main": [
+        [
+          {
+            "node": "Reply on WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

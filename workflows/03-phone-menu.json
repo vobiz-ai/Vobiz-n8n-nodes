@@ -1,0 +1,73 @@
+{
+  "name": "Vobiz: Phone menu (IVR)",
+  "nodes": [
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callAnswered"
+        ],
+        "message": "Welcome. Press 1 for sales. Press 2 for support. Press 3 to hear our opening hours. Press 4 to leave a message.",
+        "then": "menu",
+        "menuChoices": {
+          "choice": [
+            {
+              "key": "1",
+              "action": "forward",
+              "reply": "Connecting you to sales.",
+              "forwardTo": "+91XXXXXXXXXX"
+            },
+            {
+              "key": "2",
+              "action": "forward",
+              "reply": "Connecting you to support.",
+              "forwardTo": "+91XXXXXXXXXX"
+            },
+            {
+              "key": "3",
+              "action": "say",
+              "reply": "We are open from 10 in the morning to 7 in the evening, Monday to Saturday. Goodbye."
+            },
+            {
+              "key": "4",
+              "action": "voicemail",
+              "reply": "Please leave your message after the beep."
+            }
+          ]
+        }
+      },
+      "id": "ec687a55-e0e0-4450-a493-efc16280e124",
+      "name": "Phone menu",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phone menu (IVR)\nCallers press a key: 1 and 2 forward the call, 3 hears your opening hours, 4 leaves a voicemail.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Answer Incoming Calls On Names or IDs**, choose the Vobiz number to answer.\n3. In **Menu Choices**, replace the **Forward To** numbers and edit what each key says.\n4. **Publish** the workflow.",
+        "height": 400,
+        "width": 420
+      },
+      "id": "6b6569c9-7eab-428a-a4e6-0a6be48d5f44",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -120
+      ]
+    }
+  ],
+  "connections": {},
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

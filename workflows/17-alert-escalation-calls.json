@@ -1,0 +1,192 @@
+{
+  "name": "Vobiz: Alert escalation calls",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vobiz-alert-call",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "f2952ac9-65b4-452e-adf0-d21159ee6ebb",
+      "name": "Alert received",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "+91XXXXXXXXXX",
+        "answerUrl": "Paste the Production URL of the \"Answer the call\" node here",
+        "message": "=Alert. {{ $json.body.message || 'A monitoring alert needs your attention' }}. Please check it now.",
+        "options": {
+          "ringTimeout": 30,
+          "timeLimit": 120
+        }
+      },
+      "id": "930f634b-1c12-40bf-a6b8-3e868172d5c7",
+      "name": "Call the on-call engineer",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callEnded"
+        ],
+        "message": "Hello! This is a call from Vobiz. Thank you, goodbye.",
+        "then": "hangup"
+      },
+      "id": "d9dbf52d-ce92-4b64-a1f5-db9576f119f4",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1b9e0f08-510a-4479-a993-dcd24694ff41",
+              "leftValue": "={{ $json.answered }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "d7e140ed-2223-4c48-a67a-921b059afb24",
+              "leftValue": "={{ $json.to }}",
+              "rightValue": "XXXXXXXXXX",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1050900-6e8e-45cb-a255-cee4128cd044",
+      "name": "On-call did not answer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "+91XXXXXXXXXX",
+        "answerUrl": "Paste the Production URL of the \"Answer the call\" node here",
+        "message": "An alert was not answered by the on-call engineer. Please check it now.",
+        "options": {
+          "ringTimeout": 30,
+          "timeLimit": 120
+        }
+      },
+      "id": "ad9537bf-dea3-4d22-af9e-985262d0e29e",
+      "name": "Call the backup engineer",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        480,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Alert escalation calls\nYour monitoring tool sends `{\"message\": \"...\"}` to **Alert received**. If the on-call engineer doesn't answer, the backup is called.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Open **Answer the call**, then **Webhook URLs** → **Production URL**, and copy it into **Answer URL** on the node that makes the call. Do this for both call nodes.\n3. Choose the **From Number** in both call nodes.\n4. Put the on-call number in **Call the on-call engineer** → **To**, and its last 10 digits in **On-call did not answer?** in place of XXXXXXXXXX.\n5. Put the backup number in **Call the backup engineer** → **To**.\n6. **Publish** the workflow.\n\n**Calls are real and billed to your Vobiz account.** Test with your own number first.",
+        "height": 660,
+        "width": 420
+      },
+      "id": "212a24b8-a341-4b9d-a3dd-02e7192be9c0",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -240
+      ]
+    }
+  ],
+  "connections": {
+    "Alert received": {
+      "main": [
+        [
+          {
+            "node": "Call the on-call engineer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer the call": {
+      "main": [
+        [
+          {
+            "node": "On-call did not answer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On-call did not answer?": {
+      "main": [
+        [
+          {
+            "node": "Call the backup engineer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
