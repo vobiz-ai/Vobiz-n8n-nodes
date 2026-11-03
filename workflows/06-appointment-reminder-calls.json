@@ -1,0 +1,180 @@
+{
+  "name": "Vobiz: Appointment reminder calls",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "3d02b913-f12e-4514-a619-e4326f6f6678",
+      "name": "Every day at 9 am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sheet1"
+        },
+        "options": {}
+      },
+      "id": "937dbcbc-f01e-41de-a9ec-bef8e4d69f34",
+      "name": "Read appointments",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cd4eeb92-c4c4-4b7e-a993-21fde4eb8a2a",
+              "leftValue": "={{ $json.Date }}",
+              "rightValue": "={{ $today.plus({ days: 1 }).toFormat('yyyy-MM-dd') }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ecab8488-0348-4352-ad3c-bbf515ab5581",
+      "name": "Appointments tomorrow",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "={{ $json.Phone }}",
+        "answerUrl": "Paste the Production URL of the \"Answer the call\" node here",
+        "message": "=Hi {{ $json.Name }}, this is a reminder of your appointment tomorrow at {{ $json.Time }}. See you then. Goodbye.",
+        "options": {}
+      },
+      "id": "2d4ab668-c8b4-44f0-a85f-bae0b73356bc",
+      "name": "Call the customer",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callAnswered"
+        ],
+        "message": "Hello! This is a call from Vobiz. Thank you, goodbye.",
+        "then": "hangup"
+      },
+      "id": "db2aa218-1f59-4ec7-a3f4-6cbcbedfa3d1",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Appointment reminder calls\nYour sheet needs the columns **Name**, **Phone** (with the country code), **Date** (YYYY-MM-DD) and **Time**.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Read appointments**, connect Google Sheets and choose your sheet.\n3. Open **Answer the call**, then **Webhook URLs** → **Production URL**, and copy it into **Answer URL** on the node that makes the call.\n4. In the node that makes the call, choose your **From Number**.\n5. **Publish** the workflow.\n\n**Calls are real and billed to your Vobiz account.** Test with your own number first.",
+        "height": 520,
+        "width": 420
+      },
+      "id": "664cc79f-750b-4274-a31d-8a01dddaa7f8",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -200
+      ]
+    }
+  ],
+  "connections": {
+    "Every day at 9 am": {
+      "main": [
+        [
+          {
+            "node": "Read appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read appointments": {
+      "main": [
+        [
+          {
+            "node": "Appointments tomorrow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appointments tomorrow": {
+      "main": [
+        [
+          {
+            "node": "Call the customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

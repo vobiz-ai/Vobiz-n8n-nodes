@@ -1,0 +1,126 @@
+{
+  "name": "Vobiz: Slack alert for missed forwarded calls",
+  "nodes": [
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "forwardFinished"
+        ],
+        "message": "Thanks for calling. Connecting you to our team.",
+        "then": "forward",
+        "forwardTo": "+91XXXXXXXXXX",
+        "ifNoAnswer": "voicemail"
+      },
+      "id": "f3608c52-34b2-410f-a1b6-e6671ca4b143",
+      "name": "Answer and forward",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cc569392-79ff-4057-a5e6-cae87956b0ba",
+              "leftValue": "={{ $json.answered }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2990a707-c393-4bb9-a27b-b8ba3998f32f",
+      "name": "Not answered?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "text": "=Missed call from {{ $json.from }}. Nobody answered the forwarded call ({{ $json.dial_status }}). The caller was offered voicemail.",
+        "otherOptions": {}
+      },
+      "id": "481f886c-55e2-49b0-acb9-f35d8d9aa62a",
+      "name": "Tell the team on Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Slack alert for missed forwarded calls\nCalls are forwarded to your agent. If the agent doesn't answer, the caller can leave a voicemail and your team gets a Slack message.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Answer Incoming Calls On Names or IDs**, choose the Vobiz number to answer.\n3. Replace the number in **Forward To** with your agent's.\n4. In **Tell the team on Slack**, connect Slack and choose a channel.\n5. **Publish** the workflow.",
+        "height": 460,
+        "width": 420
+      },
+      "id": "31f0258d-1f8b-452c-ad6e-32a0a1cad23a",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -160
+      ]
+    }
+  ],
+  "connections": {
+    "Answer and forward": {
+      "main": [
+        [
+          {
+            "node": "Not answered?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not answered?": {
+      "main": [
+        [
+          {
+            "node": "Tell the team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

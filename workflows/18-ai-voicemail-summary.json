@@ -1,0 +1,169 @@
+{
+  "name": "Vobiz: AI voicemail summary in Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "voicemailRecorded"
+        ],
+        "message": "Sorry we missed your call. Please leave a message after the beep.",
+        "then": "voicemail"
+      },
+      "id": "5a26fdd4-a62c-4fa7-aed0-ee6ec2cca8dd",
+      "name": "Answer and record",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "recording",
+        "operation": "download",
+        "recordingId": "={{ $json.recording_id }}",
+        "binaryPropertyName": "data"
+      },
+      "id": "8cdbda66-4c7c-4a37-a325-a83d4b3b3475",
+      "name": "Download the voicemail",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "id": "9d03ec73-fb53-4e38-a6f9-1e946386d83c",
+      "name": "Transcribe",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Summarize this voicemail in two short sentences. Then list any name, phone number or request it mentions.\n\nVoicemail:\n{{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "24b4bc61-fbec-4095-a7ab-37beac3d5046",
+      "name": "Summarize",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "text": "=New voicemail from {{ $('Answer and record').item.json.from }}\n{{ $json.message.content }}",
+        "otherOptions": {}
+      },
+      "id": "cebd9b3f-40fe-473d-a402-c6331c7803c7",
+      "name": "Post the summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## AI voicemail summary in Slack\nCallers leave a voicemail. OpenAI transcribes and summarizes it, and the summary is posted in Slack.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Answer Incoming Calls On Names or IDs**, choose the Vobiz number to answer.\n3. Connect OpenAI in **Transcribe** and **Summarize**.\n4. In **Post the summary**, connect Slack and choose a channel.\n5. **Publish** the workflow.",
+        "height": 460,
+        "width": 420
+      },
+      "id": "f84dab72-5f9c-4030-a6cd-69f6ad9cd881",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -160
+      ]
+    }
+  ],
+  "connections": {
+    "Answer and record": {
+      "main": [
+        [
+          {
+            "node": "Download the voicemail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download the voicemail": {
+      "main": [
+        [
+          {
+            "node": "Transcribe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe": {
+      "main": [
+        [
+          {
+            "node": "Summarize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize": {
+      "main": [
+        [
+          {
+            "node": "Post the summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "name": "Vobiz: AI chat with your call data",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "88adab2c-b03e-402d-ab0f-d4d59dee46bb",
+      "name": "Chat message",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=You answer questions about this company's phone calls on Vobiz. Use the tools to look up call records and totals. Today is {{ $today.toISODate() }}. Keep answers short."
+        }
+      },
+      "id": "fb610bc8-3582-4481-afa0-2b5364c9e3bd",
+      "name": "Call data assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "33925e0d-b55b-4b6d-a7de-b14764c0ab3c",
+      "name": "OpenAI chat model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        100,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Gets call records from Vobiz: numbers, times, duration, cost and whether each call was answered. Use it to find or count specific calls.",
+        "resource": "callRecord",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": "={{ $fromAI('limit', 'How many call records to fetch, at most 100', 'number') }}",
+        "filters": {
+          "startDate": "={{ $fromAI('startDate', 'First day to include, as YYYY-MM-DD', 'string') }}",
+          "endDate": "={{ $fromAI('endDate', 'Last day to include, as YYYY-MM-DD', 'string') }}"
+        },
+        "simplify": true
+      },
+      "id": "672d4fd1-92b3-47ec-a4fa-d2a58d0fa8ae",
+      "name": "Get call records",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTool",
+      "typeVersion": 1,
+      "position": [
+        300,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Gets totals for a period from Vobiz: number of calls, answered calls, answer rate, talk time and cost.",
+        "resource": "callRecord",
+        "operation": "getSummary",
+        "filters": {
+          "startDate": "={{ $fromAI('startDate', 'First day to include, as YYYY-MM-DD', 'string') }}",
+          "endDate": "={{ $fromAI('endDate', 'Last day to include, as YYYY-MM-DD', 'string') }}"
+        }
+      },
+      "id": "cad5dc30-3fcc-4f8f-a1a9-d34e7561d548",
+      "name": "Get call totals",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTool",
+      "typeVersion": 1,
+      "position": [
+        500,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## AI chat with your call data\nChat with an AI agent that looks up your Vobiz calls to answer questions such as \"How many calls did we miss yesterday?\"\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Connect OpenAI in **OpenAI chat model**.\n3. Click **Open chat** and ask a question.",
+        "height": 340,
+        "width": 420
+      },
+      "id": "286e5138-ecb6-463d-afe6-30a10fcc71db",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -140
+      ]
+    }
+  ],
+  "connections": {
+    "Chat message": {
+      "main": [
+        [
+          {
+            "node": "Call data assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI chat model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Call data assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get call records": {
+      "ai_tool": [
+        [
+          {
+            "node": "Call data assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get call totals": {
+      "ai_tool": [
+        [
+          {
+            "node": "Call data assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

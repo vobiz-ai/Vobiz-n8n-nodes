@@ -1,0 +1,244 @@
+{
+  "name": "Vobiz: Order confirmation call (press 1 or 2)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vobiz-order-confirmation",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "0ef05eed-ab6f-4eb4-a30b-820775313ceb",
+      "name": "New order",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "={{ $json.body.phone }}",
+        "answerUrl": "Paste the Production URL of the \"Answer the call\" node here",
+        "message": "=Hi {{ $json.body.name }}. This is a call about your order {{ $json.body.order_id }} for {{ $json.body.amount }} rupees. Press 1 to confirm it. Press 2 to cancel it.",
+        "options": {
+          "timeLimit": 120
+        }
+      },
+      "id": "6d61737a-64c6-4043-a63f-59700c49bfaa",
+      "name": "Call the customer",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "keyPressed"
+        ],
+        "message": "Press 1 to confirm your order. Press 2 to cancel it.",
+        "then": "menu",
+        "menuChoices": {
+          "choice": [
+            {
+              "key": "1",
+              "action": "say",
+              "reply": "Thank you. Your order is confirmed. Goodbye."
+            },
+            {
+              "key": "2",
+              "action": "say",
+              "reply": "Your order has been cancelled. Goodbye."
+            }
+          ]
+        }
+      },
+      "id": "d85fd90a-f178-4131-aca7-e02b765d9239",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "269c07b1-0a2a-49fd-ab3e-c79f70bf333f",
+                    "leftValue": "={{ $json.key }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Confirm"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0a993ce9-241d-4c3a-a27f-0bf71bda1faa",
+                    "leftValue": "={{ $json.key }}",
+                    "rightValue": "2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cancel"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6e9e59cd-93ee-4ab3-a393-75189675b080",
+      "name": "Which key?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-store.example.com/api/orders/confirm",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone\": \"{{ $json.to }}\",\n  \"status\": \"confirmed\",\n  \"call_uuid\": \"{{ $json.call_uuid }}\"\n}",
+        "options": {}
+      },
+      "id": "aca64893-8486-44f4-a515-491ecc3adcf5",
+      "name": "Confirm the order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-store.example.com/api/orders/cancel",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone\": \"{{ $json.to }}\",\n  \"status\": \"cancelled\",\n  \"call_uuid\": \"{{ $json.call_uuid }}\"\n}",
+        "options": {}
+      },
+      "id": "3c6c1ec1-8543-4c3c-a62e-1f27914b8d08",
+      "name": "Cancel the order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Order confirmation call\nYour store sends `{\"phone\", \"name\", \"order_id\", \"amount\"}` to **New order**. The customer presses 1 or 2, and **Confirm the order** or **Cancel the order** tells your store.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Open **Answer the call**, then **Webhook URLs** → **Production URL**, and copy it into **Answer URL** on the node that makes the call.\n3. In the node that makes the call, choose your **From Number**.\n4. Change the two **URL**s to your store's API.\n5. **Publish** the workflow.\n6. Send new orders to the **Production URL** of **New order**.\n\n**Calls are real and billed to your Vobiz account.** Test with your own number first.",
+        "height": 600,
+        "width": 420
+      },
+      "id": "313db547-9a59-481a-a444-91571ce01846",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -200
+      ]
+    }
+  ],
+  "connections": {
+    "New order": {
+      "main": [
+        [
+          {
+            "node": "Call the customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer the call": {
+      "main": [
+        [
+          {
+            "node": "Which key?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which key?": {
+      "main": [
+        [
+          {
+            "node": "Confirm the order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel the order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

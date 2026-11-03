@@ -1,0 +1,126 @@
+{
+  "name": "Vobiz: Voice OTP call",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vobiz-otp-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c3d09ac5-eb50-4aaa-a9cf-a944d6b0027f",
+      "name": "OTP request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "={{ $json.body.phone }}",
+        "answerUrl": "Paste the Production URL of the \"Answer the call\" node here",
+        "message": "=Your verification code is {{ String($json.body.code).split('').join(', ') }}. Again, your code is {{ String($json.body.code).split('').join(', ') }}.",
+        "options": {
+          "timeLimit": 60
+        }
+      },
+      "id": "5652beef-a23c-4049-a382-778ab6b900cb",
+      "name": "Call with the code",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"calling\", \"call_uuid\": $json.call_uuid } }}",
+        "options": {}
+      },
+      "id": "78676a91-c417-46a7-a023-956fb420044f",
+      "name": "Reply to your app",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callAnswered"
+        ],
+        "message": "Hello! This is a call from Vobiz. Thank you, goodbye.",
+        "then": "hangup"
+      },
+      "id": "7b201155-c20f-4fb4-a8eb-cbc1191f6515",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Voice OTP call\nYour app sends `{\"phone\": \"+91XXXXXXXXXX\", \"code\": \"482913\"}` to **OTP request**. Vobiz calls the phone and reads the code out twice.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Open **Answer the call**, then **Webhook URLs** → **Production URL**, and copy it into **Answer URL** on the node that makes the call.\n3. In the node that makes the call, choose your **From Number**.\n4. **Publish** the workflow.\n5. Send the request to the **Production URL** of **OTP request**.\n\n**Calls are real and billed to your Vobiz account.** Test with your own number first.",
+        "height": 540,
+        "width": 420
+      },
+      "id": "76f0e998-0dfc-4722-a1b6-3353c8b2b802",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -180
+      ]
+    }
+  ],
+  "connections": {
+    "OTP request": {
+      "main": [
+        [
+          {
+            "node": "Call with the code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call with the code": {
+      "main": [
+        [
+          {
+            "node": "Reply to your app",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

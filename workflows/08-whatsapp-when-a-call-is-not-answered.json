@@ -1,0 +1,139 @@
+{
+  "name": "Vobiz: WhatsApp when a call is not answered",
+  "nodes": [
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callEnded"
+        ],
+        "message": "Hello! This is a call from Vobiz. Thank you, goodbye.",
+        "then": "hangup"
+      },
+      "id": "963cd2bb-f40e-4685-af7e-60aacb91d7e8",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d29d877b-2ae9-4198-a685-cc4cb0289bcd",
+              "leftValue": "={{ $json.answered }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "7ea41c91-6eba-498d-a49f-7971da0b910f",
+              "leftValue": "={{ $json.direction }}",
+              "rightValue": "outbound",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "73f7714f-80c2-46ec-a437-daf21a0f3fd0",
+      "name": "Not answered?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "whatsAppMessage",
+        "operation": "send",
+        "channel": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "={{ $json.to }}",
+        "messageType": "template",
+        "template": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "26383acb-dd72-4e91-abbd-659c27fd8131",
+      "name": "Send a WhatsApp template",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## WhatsApp when a call is not answered\nUse this trigger's **Production URL** as the **Answer URL** in your Make a call nodes. When a call ends unanswered, the person gets your WhatsApp template.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Send a WhatsApp template**, choose your **Channel** and an approved **Template**.\n3. **Publish** the workflow.",
+        "height": 380,
+        "width": 420
+      },
+      "id": "cfdabb90-418a-4f8c-ae34-3e4b6f809faf",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -160
+      ]
+    }
+  ],
+  "connections": {
+    "Answer the call": {
+      "main": [
+        [
+          {
+            "node": "Not answered?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not answered?": {
+      "main": [
+        [
+          {
+            "node": "Send a WhatsApp template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

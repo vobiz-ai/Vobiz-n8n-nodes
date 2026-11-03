@@ -1,0 +1,111 @@
+{
+  "name": "Vobiz: Call back website leads",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Request a call back",
+        "formDescription": "Leave your number and we will call you right away.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Phone",
+              "placeholder": "+91XXXXXXXXXX",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "364f6112-6d32-4cd8-a49f-bee5b5b40ac4",
+      "name": "Call-back form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "+91XXXXXXXXXX",
+        "answerUrl": "Paste the Production URL of the \"Answer the call\" node here",
+        "message": "=New call back request from {{ $json.Name }}. Connecting you now.",
+        "connectTo": "={{ $json.Phone }}",
+        "options": {}
+      },
+      "id": "ebcfe895-cdf9-458f-afc0-c67ccf9d13b6",
+      "name": "Call the agent, then the lead",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callAnswered"
+        ],
+        "message": "Hello! This is a call from Vobiz. Thank you, goodbye.",
+        "then": "hangup"
+      },
+      "id": "4c2237c7-2db8-43b3-a9d9-b63472386230",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Call back website leads\nWhen someone sends the form, Vobiz calls your agent first. When the agent answers, Vobiz rings the lead and connects them.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Open **Answer the call**, then **Webhook URLs** → **Production URL**, and copy it into **Answer URL** on the node that makes the call.\n3. In the node that makes the call, choose your **From Number**.\n4. Put your agent's number in **To**, with the country code.\n5. **Publish** the workflow.\n6. Share the **Production URL** of **Call-back form**, or embed it on your site.\n\n**Calls are real and billed to your Vobiz account.** Test with your own number first.",
+        "height": 600,
+        "width": 420
+      },
+      "id": "6bee3416-f9da-41f0-ad7b-c2e4761d5298",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -200
+      ]
+    }
+  ],
+  "connections": {
+    "Call-back form": {
+      "main": [
+        [
+          {
+            "node": "Call the agent, then the lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

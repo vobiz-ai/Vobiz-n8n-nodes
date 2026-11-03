@@ -1,0 +1,47 @@
+{
+  "name": "Vobiz: Answer calls with a greeting",
+  "nodes": [
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callAnswered"
+        ],
+        "message": "Thank you for calling. Our team will get back to you shortly. Goodbye.",
+        "then": "hangup"
+      },
+      "id": "787409cc-f206-4c4f-a7f0-1177e08cdcfd",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Answer calls with a greeting\nVobiz answers calls to your number with this message, then hangs up.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. In **Answer Incoming Calls On Names or IDs**, choose the Vobiz number to answer.\n3. Change the **Message**.\n4. **Publish** the workflow.",
+        "height": 360,
+        "width": 420
+      },
+      "id": "e5482010-e18a-448b-a581-1ec7cb019e99",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -120
+      ]
+    }
+  ],
+  "connections": {},
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

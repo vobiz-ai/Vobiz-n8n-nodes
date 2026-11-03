@@ -1,0 +1,95 @@
+{
+  "name": "Vobiz: Make a call that speaks a message",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "07cbe90c-95fb-4006-a4c5-1691995ae1a5",
+      "name": "Run it",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "from": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "to": "+91XXXXXXXXXX",
+        "answerUrl": "Paste the Production URL of the \"Answer the call\" node here",
+        "message": "Hello! This is a test call from n8n and Vobiz. Goodbye.",
+        "options": {
+          "timeLimit": 120
+        }
+      },
+      "id": "2444ccfe-968a-4843-aba1-25b9ef41af0e",
+      "name": "Make a call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobiz",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "calls",
+        "numbers": [],
+        "voice": "WOMAN",
+        "language": "en-US",
+        "options": {},
+        "callEvents": [
+          "callAnswered"
+        ],
+        "message": "Hello! This is a call from Vobiz. Thank you, goodbye.",
+        "then": "hangup"
+      },
+      "id": "e840e180-1eb1-40ab-a9d8-f3426ade1abb",
+      "name": "Answer the call",
+      "type": "@vobiz-ai/n8n-nodes-vobiz.vobizTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Make a call that speaks a message\nClick **Execute workflow** to call the number in **To** and read out the **Message**.\n\n### Set up\n1. Open each Vobiz node and pick your **Vobiz** credential.\n2. Open **Answer the call**, then **Webhook URLs** → **Production URL**, and copy it into **Answer URL** on the node that makes the call.\n3. In the node that makes the call, choose your **From Number**.\n4. Put your own number in **To**, with the country code.\n5. **Publish** the workflow.\n6. Click **Execute workflow**.\n\n**Calls are real and billed to your Vobiz account.** Test with your own number first.",
+        "height": 560,
+        "width": 420
+      },
+      "id": "35e3af86-57aa-4332-a7cb-5a819955cf7a",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -160
+      ]
+    }
+  ],
+  "connections": {
+    "Run it": {
+      "main": [
+        [
+          {
+            "node": "Make a call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
