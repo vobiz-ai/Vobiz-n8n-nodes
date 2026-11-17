@@ -149,6 +149,7 @@ function createMockVobiz({ port = 0 } = {}) {
 			['app-crm', { app_id: 'app-crm', app_name: 'CRM calling', answer_url: 'https://crm.example.com/answer' }],
 		]),
 		deleteApplicationStatus: 204,
+		deleteSubscriptionStatus: 204,
 		subscriptions: new Map(),
 		nextId: 1,
 	};
@@ -511,6 +512,9 @@ function createMockVobiz({ port = 0 } = {}) {
 			if (method === 'DELETE' && subMatch) {
 				const id = decodeURIComponent(subMatch[1]);
 				if (!state.subscriptions.has(id)) return send(res, 404, { error: 'not found' });
+				if (state.deleteSubscriptionStatus !== 204) {
+					return send(res, state.deleteSubscriptionStatus, { error: 'subscription delete failed' });
+				}
 				state.subscriptions.delete(id);
 				return send(res, 204);
 			}

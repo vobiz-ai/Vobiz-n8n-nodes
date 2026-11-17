@@ -514,6 +514,26 @@ test('WhatsApp: when n8n’s address changes, its old subscription is removed, n
 	await waHooks.delete.call(moved);
 });
 
+test('WhatsApp: a failed unpublish keeps the subscription ID and signing secret', async () => {
+	const staticData = {};
+	const context = hookContext({ credentials, staticData, webhookUrl: WA_URL, params: WA_PARAMS });
+	await waHooks.create.call(context);
+	const id = staticData.subscriptionId;
+	const secret = staticData.secret;
+	mock.state.deleteSubscriptionStatus = 500;
+
+	await waHooks.delete.call(context);
+	assert.equal(staticData.subscriptionId, id);
+	assert.equal(staticData.secret, secret);
+	assert.equal(mock.state.subscriptions.has(id), true);
+
+	mock.state.deleteSubscriptionStatus = 204;
+	await waHooks.delete.call(context);
+	assert.equal(staticData.subscriptionId, undefined);
+	assert.equal(staticData.secret, undefined);
+	assert.equal(mock.state.subscriptions.has(id), false);
+});
+
 test('WhatsApp: a correctly signed message starts the workflow with readable fields', async () => {
 	const staticData = { secret: 'a'.repeat(64), subscriptionId: 'sub-x' };
 	const event = inboundEvent();

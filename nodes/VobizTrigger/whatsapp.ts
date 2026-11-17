@@ -211,6 +211,7 @@ export const whatsAppHooks = {
 					this.logger.warn(
 						`Vobiz Trigger (WhatsApp): could not remove subscription ${String(staticData.subscriptionId)}: ${(error as Error).message}`,
 					);
+					return true;
 				}
 			}
 		}
